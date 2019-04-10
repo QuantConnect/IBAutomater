@@ -1,0 +1,1 @@
+@java -cp %1/ibgateway/%2/jars/*;./*;./IBAutomater.jar ibautomater.IBAutomater -ibdir %1 -user %3 -pwd %4 -mode %5 -port %6
