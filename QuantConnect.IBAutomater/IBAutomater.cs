@@ -16,6 +16,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using Newtonsoft.Json.Linq;
 
 namespace QuantConnect.IBAutomater
@@ -107,6 +108,42 @@ namespace QuantConnect.IBAutomater
             }
 
             return process;
+        }
+
+        public void Stop()
+        {
+            if (IsWindows)
+            {
+                foreach (var process in Process.GetProcesses())
+                {
+                    try
+                    {
+                        if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
+                        {
+                            process.Kill();
+                            Thread.Sleep(2500);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
+                }
+            }
+            else
+            {
+                try
+                {
+                    Process.Start("pkill", "xvfb-run");
+                    Process.Start("pkill", "java");
+                    Process.Start("pkill", "Xvfb");
+                    Thread.Sleep(2500);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
         }
 
         private static bool IsLinux
