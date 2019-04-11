@@ -68,8 +68,6 @@ namespace QuantConnect.IBAutomater
             var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
             var arguments = $"{_ibDirectory} {ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
 
-            Console.WriteLine(fileName + " " + arguments);
-
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo(fileName, arguments)
