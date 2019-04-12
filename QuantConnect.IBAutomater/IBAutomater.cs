@@ -66,6 +66,12 @@ namespace QuantConnect.IBAutomater
         {
             const string ibVersion = "974";
 
+            if (IsLinux)
+            {
+                // need permission for execution
+                Process.Start("chmod", "+x IBAutomater.sh");
+            }
+
             var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
             var arguments = $"{_ibDirectory} {ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
 
