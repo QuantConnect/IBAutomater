@@ -23,8 +23,8 @@ namespace QuantConnect.IBAutomater
 {
     public class IBAutomater
     {
-        public event EventHandler<DataReceivedEventArgs> OutputDataReceived;
-        public event EventHandler<DataReceivedEventArgs> ErrorDataReceived;
+        public event EventHandler<string> OutputDataReceived;
+        public event EventHandler<string> ErrorDataReceived;
         public event EventHandler<int> Exited;
 
         private readonly string _ibDirectory;
@@ -46,8 +46,8 @@ namespace QuantConnect.IBAutomater
 
             var automater = new IBAutomater(ibDirectory, userName, password, tradingMode, portNumber);
 
-            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
-            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
+            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
+            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
             automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [{e}]");
 
             automater.Start(true);
@@ -68,6 +68,15 @@ namespace QuantConnect.IBAutomater
 
             if (IsLinux)
             {
+                // debug testing
+                if (!File.Exists("IBAutomater.sh"))
+                {
+                    OutputDataReceived?.Invoke(this, $"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                }
+
+                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
+
                 // need permission for execution
                 Process.Start("chmod", "+x IBAutomater.sh");
             }
@@ -90,12 +99,12 @@ namespace QuantConnect.IBAutomater
 
             process.OutputDataReceived += (sender, e) =>
             {
-                OutputDataReceived?.Invoke(this, e);
+                OutputDataReceived?.Invoke(this, e.Data);
             };
 
             process.ErrorDataReceived += (sender, e) =>
             {
-                ErrorDataReceived?.Invoke(this, e);
+                ErrorDataReceived?.Invoke(this, e.Data);
             };
 
             process.Exited += (sender, e) =>
