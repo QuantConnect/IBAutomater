@@ -101,7 +101,6 @@ namespace QuantConnect.IBAutomater
 
                 OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.jar");
                 p = Process.Start("chmod", "+x IBAutomater.jar");
-                p.Start();
                 p.WaitForExit();
                 OutputDataReceived?.Invoke(this, $"chmod jar: process exit code: {p.ExitCode}");
             }
@@ -124,12 +123,18 @@ namespace QuantConnect.IBAutomater
 
             process.OutputDataReceived += (sender, e) =>
             {
-                OutputDataReceived?.Invoke(this, e.Data);
+                if (e.Data != null)
+                {
+                    OutputDataReceived?.Invoke(this, e.Data);
+                }
             };
 
             process.ErrorDataReceived += (sender, e) =>
             {
-                ErrorDataReceived?.Invoke(this, e.Data);
+                if (e.Data != null)
+                {
+                    ErrorDataReceived?.Invoke(this, e.Data);
+                }
             };
 
             process.Exited += (sender, e) =>
