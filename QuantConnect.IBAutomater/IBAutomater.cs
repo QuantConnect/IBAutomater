@@ -78,7 +78,7 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
 
                 // need permission for execution
-                //Process.Start("chmod", "+x IBAutomater.sh");
+                //var p = Process.Start("chmod", "+x IBAutomater.sh");
                 var p = new Process
                 {
                     StartInfo = new ProcessStartInfo("chmod", "+x IBAutomater.sh")
@@ -91,12 +91,19 @@ namespace QuantConnect.IBAutomater
                     },
                     EnableRaisingEvents = true
                 };
-                p.OutputDataReceived += (sender, e) => OutputDataReceived?.Invoke(this, e.Data);
-                p.ErrorDataReceived += (sender, e) => ErrorDataReceived?.Invoke(this, e.Data);
+                p.OutputDataReceived += (sender, e) => OutputDataReceived?.Invoke(this, "chmod: " + e.Data);
+                p.ErrorDataReceived += (sender, e) => ErrorDataReceived?.Invoke(this, "chmod: " + e.Data);
                 p.Start();
                 p.BeginErrorReadLine();
                 p.BeginOutputReadLine();
                 p.WaitForExit();
+                OutputDataReceived?.Invoke(this, $"chmod sh: process exit code: {p.ExitCode}");
+
+                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.jar");
+                p = Process.Start("chmod", "+x IBAutomater.jar");
+                p.Start();
+                p.WaitForExit();
+                OutputDataReceived?.Invoke(this, $"chmod jar: process exit code: {p.ExitCode}");
             }
 
             var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
