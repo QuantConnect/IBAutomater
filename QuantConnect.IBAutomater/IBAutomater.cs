@@ -28,6 +28,7 @@ namespace QuantConnect.IBAutomater
         public event EventHandler<int> Exited;
 
         private readonly string _ibDirectory;
+        private readonly string _ibVersion;
         private readonly string _userName;
         private readonly string _password;
         private readonly string _tradingMode;
@@ -43,8 +44,13 @@ namespace QuantConnect.IBAutomater
             var password = config["ib-password"].ToString();
             var tradingMode = config["ib-trading-mode"].ToString();
             var portNumber = config["ib-port"].ToObject<int>();
+            var ibVersion = "974";
+            if (config["ib-version"] != null)
+            {
+                ibVersion = config["ib-version"].ToString();
+            }
 
-            var automater = new IBAutomater(ibDirectory, userName, password, tradingMode, portNumber);
+            var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber);
 
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
             automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
@@ -53,9 +59,10 @@ namespace QuantConnect.IBAutomater
             automater.Start(true);
         }
 
-        public IBAutomater(string ibDirectory, string userName, string password, string tradingMode, int portNumber)
+        public IBAutomater(string ibDirectory, string ibVersion, string userName, string password, string tradingMode, int portNumber)
         {
             _ibDirectory = ibDirectory;
+            _ibVersion = ibVersion;
             _userName = userName;
             _password = password;
             _tradingMode = tradingMode;
@@ -64,49 +71,33 @@ namespace QuantConnect.IBAutomater
 
         public Process Start(bool waitForExit)
         {
-            const string ibVersion = "974";
-
             if (IsLinux)
             {
                 // debug testing
                 if (!File.Exists("IBAutomater.sh"))
                 {
-                    OutputDataReceived?.Invoke(this, $"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
-                    throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    var message = $"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}";
+                    OutputDataReceived?.Invoke(this, message);
+                    throw new Exception(message);
                 }
 
-                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
+                if (!File.Exists("IBAutomater.jar"))
+                {
+                    var message = $"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}";
+                    OutputDataReceived?.Invoke(this, message);
+                    throw new Exception(message);
+                }
 
                 // need permission for execution
-                //var p = Process.Start("chmod", "+x IBAutomater.sh");
-                var p = new Process
-                {
-                    StartInfo = new ProcessStartInfo("chmod", "+x IBAutomater.sh")
-                    {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        CreateNoWindow = true
-                    },
-                    EnableRaisingEvents = true
-                };
-                p.OutputDataReceived += (sender, e) => OutputDataReceived?.Invoke(this, "chmod: " + e.Data);
-                p.ErrorDataReceived += (sender, e) => ErrorDataReceived?.Invoke(this, "chmod: " + e.Data);
-                p.Start();
-                p.BeginErrorReadLine();
-                p.BeginOutputReadLine();
-                p.WaitForExit();
-                OutputDataReceived?.Invoke(this, $"chmod sh: process exit code: {p.ExitCode}");
+                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
+                ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
 
                 OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.jar");
-                p = Process.Start("chmod", "+x IBAutomater.jar");
-                p.WaitForExit();
-                OutputDataReceived?.Invoke(this, $"chmod jar: process exit code: {p.ExitCode}");
+                ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.jar");
             }
 
             var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-            var arguments = $"{_ibDirectory} {ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
+            var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
 
             var process = new Process
             {
@@ -189,6 +180,44 @@ namespace QuantConnect.IBAutomater
                     // ignored
                 }
             }
+        }
+
+        private void ExecuteProcessAndWaitForExit(string fileName, string arguments)
+        {
+            var p = new Process
+            {
+                StartInfo = new ProcessStartInfo(fileName, arguments)
+                {
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true
+                },
+                EnableRaisingEvents = true
+            };
+
+            p.OutputDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                {
+                    OutputDataReceived?.Invoke(this, $"{fileName}: {e.Data}");
+                }
+            };
+            p.ErrorDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                {
+                    ErrorDataReceived?.Invoke(this, $"{fileName}: {e.Data}");
+                }
+            };
+
+            p.Start();
+            p.BeginErrorReadLine();
+            p.BeginOutputReadLine();
+            p.WaitForExit();
+
+            OutputDataReceived?.Invoke(this, $"{fileName} {arguments}: process exit code: {p.ExitCode}");
         }
 
         private static bool IsLinux
