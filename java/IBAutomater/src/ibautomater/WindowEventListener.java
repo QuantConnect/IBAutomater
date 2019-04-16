@@ -88,20 +88,23 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
         
-        boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
-        String buttonText = isLiveTradingMode ? "Log In" : "Paper Log In";
+        String title = Common.getTitle(window);
         
-        JButton loginButton = Common.getButton(window, buttonText);
-        if (loginButton == null) {
+        if (title != null && !title.equals("IB Gateway")) {
             return false;
         }
         
-        JToggleButton ibApiButton = Common.getToggleButton(window, "IB API");
+        boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
+
+        String buttonIbApiText = "IB API";
+        JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
         if (ibApiButton == null) {
             throw new Exception("IB API toggle button not found");
         }
-        
-        ibApiButton.doClick();
+        if (!ibApiButton.isSelected()) {
+            this.automater.logMessage("Click button: [" + buttonIbApiText + "]");
+            ibApiButton.doClick();
+        }
         
         String buttonTradingModeText = isLiveTradingMode ? "Live Trading" : "Paper Trading";
         JToggleButton tradingModeButton = Common.getToggleButton(window, buttonTradingModeText);
@@ -109,6 +112,7 @@ public class WindowEventListener implements AWTEventListener {
             throw new Exception("Trading Mode toggle button not found");
         }
         if (!tradingModeButton.isSelected()) {
+            this.automater.logMessage("Click button: [" + buttonTradingModeText + "]");
             tradingModeButton.doClick();
         }
         
@@ -126,6 +130,13 @@ public class WindowEventListener implements AWTEventListener {
         }
         passwordTextField.setText(this.automater.getSettings().getPassword());
         
+        String loginButtonText = isLiveTradingMode ? "Log In" : "Paper Log In";
+        JButton loginButton = Common.getButton(window, loginButtonText);
+        if (loginButton == null) {
+            throw new Exception("Login button not found");
+        }
+        
+        this.automater.logMessage("Click button: [" + loginButtonText + "]");
         loginButton.doClick();
         
         return true;
@@ -149,6 +160,7 @@ public class WindowEventListener implements AWTEventListener {
             
             JButton button = Common.getButton(window, "OK");
             if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
                 button.doClick();
             }
             
@@ -176,6 +188,7 @@ public class WindowEventListener implements AWTEventListener {
             
             JButton button = Common.getButton(window, "OK");
             if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
                 button.doClick();
             }
             
@@ -254,27 +267,33 @@ public class WindowEventListener implements AWTEventListener {
         
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Settings"}));
         
-        JCheckBox readOnlyApi = Common.getCheckBox(window, "Read-Only API");
+        String readOnlyApiText = "Read-Only API";
+        JCheckBox readOnlyApi = Common.getCheckBox(window, readOnlyApiText);
         if (readOnlyApi == null) {
             throw new Exception("Read-Only API check box not found");
         }
         if (readOnlyApi.isSelected()) {
+            this.automater.logMessage("Unselect checkbox: [" + readOnlyApiText + "]");
             readOnlyApi.setSelected(false);
         }
         
         JTextField portNumber = Common.getTextField(window, 0);
         if (portNumber == null) {
-            throw new Exception("Port Number text field not found");
+            throw new Exception("API Port Number text field not found");
         }
-        portNumber.setText(Integer.toString(this.automater.getSettings().getPortNumber()));
+        String portText = Integer.toString(this.automater.getSettings().getPortNumber());
+        this.automater.logMessage("Set API port textbox value: [" + portText + "]");
+        portNumber.setText(portText);
         
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
-        
-        JCheckBox bypassOrderPrecautions = Common.getCheckBox(window, "Bypass Order Precautions for API Orders");
+
+        String bypassOrderPrecautionsText = "Bypass Order Precautions for API Orders";
+        JCheckBox bypassOrderPrecautions = Common.getCheckBox(window, bypassOrderPrecautionsText);
         if (bypassOrderPrecautions == null) {
             throw new Exception("Bypass Order Precautions check box not found");
         }
         if (!bypassOrderPrecautions.isSelected()) {
+            this.automater.logMessage("Select checkbox: [" + bypassOrderPrecautionsText + "]");
             bypassOrderPrecautions.setSelected(true);
         }
 
@@ -282,6 +301,7 @@ public class WindowEventListener implements AWTEventListener {
         if (okButton == null) {
             throw new Exception("OK button not found");
         }
+        this.automater.logMessage("Click button: [OK]");
         okButton.doClick();
         
         return true;
@@ -308,6 +328,5 @@ public class WindowEventListener implements AWTEventListener {
         
         return false;
     }
-
 }
 
