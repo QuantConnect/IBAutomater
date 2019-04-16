@@ -49,9 +49,11 @@ public class WindowEventListener implements AWTEventListener {
     public void eventDispatched(AWTEvent awtEvent) {
         int eventId = awtEvent.getID();
         Window window = ((WindowEvent)awtEvent).getWindow();
+        
         if (this.handledEvents.containsKey(eventId)) {
             this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "]");
         }
+        
         try {
             if (this.HandleLoginWindow(window, eventId)) {
                 return;
@@ -75,6 +77,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleExistingSessionDetectedWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleFinancialAdvisorWarningWindow(window, eventId)) {
                 return;
             }
         }
@@ -316,6 +321,28 @@ public class WindowEventListener implements AWTEventListener {
         
         if (title != null && title.equals("Existing session detected")) {
             String buttonText = "Exit Application";
+            JButton button = Common.getButton(window, buttonText);
+            
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+            
+            return true;
+        }
+        
+        return false;
+    }
+
+    private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+        
+        if (title != null && title.contains("Financial Advisor Warning")) {
+            String buttonText = "Yes";
             JButton button = Common.getButton(window, buttonText);
             
             if (button != null) {
