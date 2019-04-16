@@ -27,16 +27,27 @@ namespace QuantConnect.IBAutomater
     /// </summary>
     public class IBAutomater
     {
-        public event EventHandler<string> OutputDataReceived;
-        public event EventHandler<string> ErrorDataReceived;
-        public event EventHandler<int> Exited;
-
         private readonly string _ibDirectory;
         private readonly string _ibVersion;
         private readonly string _userName;
         private readonly string _password;
         private readonly string _tradingMode;
         private readonly int _portNumber;
+
+        /// <summary>
+        /// Event fired when the process writes to the output stream
+        /// </summary>
+        public event EventHandler<OutputDataReceivedEventArgs> OutputDataReceived;
+
+        /// <summary>
+        /// Event fired when the process writes to the error stream
+        /// </summary>
+        public event EventHandler<ErrorDataReceivedEventArgs> ErrorDataReceived;
+
+        /// <summary>
+        /// Event fired when the process exits
+        /// </summary>
+        public event EventHandler<ExitedEventArgs> Exited;
 
         /// <summary>
         /// Main program for testing and/or standalone execution
@@ -106,7 +117,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // need permission for execution
-                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
                 ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
             }
 
@@ -130,7 +141,7 @@ namespace QuantConnect.IBAutomater
             {
                 if (e.Data != null)
                 {
-                    OutputDataReceived?.Invoke(this, e.Data);
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
                 }
             };
 
@@ -138,13 +149,13 @@ namespace QuantConnect.IBAutomater
             {
                 if (e.Data != null)
                 {
-                    ErrorDataReceived?.Invoke(this, e.Data);
+                    ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
                 }
             };
 
             process.Exited += (sender, e) =>
             {
-                Exited?.Invoke(this, process.ExitCode);
+                Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
             };
 
             process.Start();
@@ -217,14 +228,14 @@ namespace QuantConnect.IBAutomater
             {
                 if (e.Data != null)
                 {
-                    OutputDataReceived?.Invoke(this, $"{fileName}: {e.Data}");
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"{fileName}: {e.Data}"));
                 }
             };
             p.ErrorDataReceived += (sender, e) =>
             {
                 if (e.Data != null)
                 {
-                    ErrorDataReceived?.Invoke(this, $"{fileName}: {e.Data}");
+                    ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs($"{fileName}: {e.Data}"));
                 }
             };
 
@@ -233,7 +244,7 @@ namespace QuantConnect.IBAutomater
             p.BeginOutputReadLine();
             p.WaitForExit();
 
-            OutputDataReceived?.Invoke(this, $"{fileName} {arguments}: process exit code: {p.ExitCode}");
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"{fileName} {arguments}: process exit code: {p.ExitCode}"));
         }
 
         private static bool IsLinux
