@@ -21,6 +21,10 @@ using Newtonsoft.Json.Linq;
 
 namespace QuantConnect.IBAutomater
 {
+    /// <summary>
+    /// The IB Automater is responsible for automating the configuration/logon process
+    /// to the IB Gateway application and for handling/dismissing its popup windows.
+    /// </summary>
     public class IBAutomater
     {
         public event EventHandler<string> OutputDataReceived;
@@ -34,6 +38,9 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
 
+        /// <summary>
+        /// Main program for testing and/or standalone execution
+        /// </summary>
         public static void Main(string[] args)
         {
             var json = File.ReadAllText("config.json");
@@ -59,6 +66,15 @@ namespace QuantConnect.IBAutomater
             automater.Start(true);
         }
 
+        /// <summary>
+        /// Creates a new instance of the <see cref="IBAutomater"/> class
+        /// </summary>
+        /// <param name="ibDirectory">The root directory of IB Gateway</param>
+        /// <param name="ibVersion">The IB Gateway version to launch</param>
+        /// <param name="userName">The user name</param>
+        /// <param name="password">The password</param>
+        /// <param name="tradingMode">The trading mode ('paper' or 'live')</param>
+        /// <param name="portNumber">The API port number</param>
         public IBAutomater(string ibDirectory, string ibVersion, string userName, string password, string tradingMode, int portNumber)
         {
             _ibDirectory = ibDirectory;
@@ -69,31 +85,29 @@ namespace QuantConnect.IBAutomater
             _portNumber = portNumber;
         }
 
-        public Process Start(bool waitForExit)
+        /// <summary>
+        /// Starts the IB Automater
+        /// </summary>
+        /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
+        /// <remarks>The IB Gateway application will be launched</remarks>
+        public void Start(bool waitForExit)
         {
             if (IsLinux)
             {
                 // debug testing
                 if (!File.Exists("IBAutomater.sh"))
                 {
-                    var message = $"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}";
-                    OutputDataReceived?.Invoke(this, message);
-                    throw new Exception(message);
+                    throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
                 }
 
                 if (!File.Exists("IBAutomater.jar"))
                 {
-                    var message = $"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}";
-                    OutputDataReceived?.Invoke(this, message);
-                    throw new Exception(message);
+                    throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
                 }
 
                 // need permission for execution
                 OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.sh");
                 ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
-
-                OutputDataReceived?.Invoke(this, "Setting execute permissions on IBAutomater.jar");
-                ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.jar");
             }
 
             var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
@@ -142,10 +156,12 @@ namespace QuantConnect.IBAutomater
             {
                 process.WaitForExit();
             }
-
-            return process;
         }
 
+        /// <summary>
+        /// Stops the IB Automater
+        /// </summary>
+        /// <remarks>The IB Gateway application will be terminated</remarks>
         public void Stop()
         {
             if (IsWindows)
