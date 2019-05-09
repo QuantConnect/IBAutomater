@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>QuantConnect.IBAutomater</id>
+    <version>1.0.1</version>
+    <authors>QuantConnect Corp.</authors>
+    <owners>QuantConnect Corp.</owners>
+    <license type="expression">Apache-2.0</license>
+    <projectUrl>https://github.com/QuantConnect/IBAutomater</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>QuantConnect IBAutomater package</description>
+    <releaseNotes>QuantConnect IBAutomater package</releaseNotes>
+    <copyright>Copyright 2019</copyright>
+    <tags>QuantConnect IBAutomater</tags>
+    <dependencies>
+        <dependency id="Newtonsoft.Json" version="10.0.3" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="QuantConnect.IBAutomater.exe" target="lib\net45" />
+    <file src="QuantConnect.IBAutomater.pdb" target="lib\net45" />
+    <file src="QuantConnect.IBAutomater.targets" target="build" />
+    <file src="IBAutomater.bat" target="build" />
+    <file src="IBAutomater.sh" target="build" />
+    <file src="IBAutomater.jar" target="build" />
+    <file src="commons-cli-1.4.jar" target="build" />
+  </files>
+</package>
