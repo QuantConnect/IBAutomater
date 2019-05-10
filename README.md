@@ -1,6 +1,6 @@
 # QuantConnect / IBAutomater
 
-IBAutomater is an automation tool for IB-Gateway 974 and above. It supports starting, stopping and automated logins for IB Gateway.
+IBAutomater is an automation tool for IB-Gateway 974 and above. It supports starting, stopping and automated logins for IB Gateway. This package is best used in conjunction with LEAN. LEAN handles the automatic login and portfolio construction once you start the Gateway.
 
 The built package is hosted on NuGet and can be installed to your packet manager by: `Install-Package QuantConnect.IBAutomater`.
 
