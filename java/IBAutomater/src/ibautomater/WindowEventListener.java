@@ -49,11 +49,11 @@ public class WindowEventListener implements AWTEventListener {
     public void eventDispatched(AWTEvent awtEvent) {
         int eventId = awtEvent.getID();
         Window window = ((WindowEvent)awtEvent).getWindow();
-        
+
         if (this.handledEvents.containsKey(eventId)) {
             this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "]");
         }
-        
+
         try {
             if (this.HandleLoginWindow(window, eventId)) {
                 return;
@@ -79,6 +79,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleExistingSessionDetectedWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleReloginRequiredWindow(window, eventId)) {
+                return;
+            }
             if (this.HandleFinancialAdvisorWarningWindow(window, eventId)) {
                 return;
             }
@@ -92,13 +95,13 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && !title.equals("IB Gateway")) {
             return false;
         }
-        
+
         boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
 
         String buttonIbApiText = "IB API";
@@ -110,7 +113,7 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Click button: [" + buttonIbApiText + "]");
             ibApiButton.doClick();
         }
-        
+
         String buttonTradingModeText = isLiveTradingMode ? "Live Trading" : "Paper Trading";
         JToggleButton tradingModeButton = Common.getToggleButton(window, buttonTradingModeText);
         if (tradingModeButton == null) {
@@ -120,30 +123,30 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Click button: [" + buttonTradingModeText + "]");
             tradingModeButton.doClick();
         }
-        
+
         this.automater.logMessage("Trading mode: " + this.automater.getSettings().getTradingMode());
-        
+
         JTextField userNameTextField = Common.getTextField(window, 0);
         if (userNameTextField == null) {
             throw new Exception("IB API user name text field not found");
         }
         userNameTextField.setText(this.automater.getSettings().getUserName());
-        
+
         JTextField passwordTextField = Common.getTextField(window, 1);
         if (passwordTextField == null) {
             throw new Exception("IB API password text field not found");
         }
         passwordTextField.setText(this.automater.getSettings().getPassword());
-        
+
         String loginButtonText = isLiveTradingMode ? "Log In" : "Paper Log In";
         JButton loginButton = Common.getButton(window, loginButtonText);
         if (loginButton == null) {
             throw new Exception("Login button not found");
         }
-        
+
         this.automater.logMessage("Click button: [" + loginButtonText + "]");
         loginButton.doClick();
-        
+
         return true;
     }
 
@@ -151,27 +154,27 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.equals("Login failed")) {
             JTextPane textPane = Common.getTextPane(window);
             String text = "";
             if (textPane != null) {
                 text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
             }
-            
+
             this.automater.logMessage("Login failed: " + text);
-            
+
             JButton button = Common.getButton(window, "OK");
             if (button != null) {
                 this.automater.logMessage("Click button: [OK]");
                 button.doClick();
             }
-            
+
             return true;
         }
-        
+
         return false;
     }
 
@@ -179,27 +182,27 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.contains("Password Notice")) {
             JTextPane textPane = Common.getTextPane(window);
             String text = "";
             if (textPane != null) {
                 text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
             }
-            
+
             this.automater.logMessage("Login failed: " + text);
-            
+
             JButton button = Common.getButton(window, "OK");
             if (button != null) {
                 this.automater.logMessage("Click button: [OK]");
                 button.doClick();
             }
-            
+
             return true;
         }
-        
+
         return false;
     }
 
@@ -207,15 +210,15 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.contains("IB Gateway") && title.contains("API Account")) {
             this.automater.setMainWindow(window);
-            
+
             return true;
         }
-        
+
         return false;
     }
 
@@ -223,16 +226,16 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.contains("Starting application...")) {
             JMenuItem menuItem = Common.getMenuItem(this.automater.getMainWindow(), "Configure", "Settings");
             menuItem.doClick();
-            
+
             return true;
         }
-        
+
         return false;
     }
 
@@ -240,14 +243,14 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         if (Common.getLabel(window, "This is not a brokerage account") == null) {
             return false;
         }
-        
+
         String buttonText = "I understand and accept";
         JButton button = Common.getButton(window, buttonText);
-        
+
         if (button != null) {
             this.automater.logMessage("Click button: [" + buttonText + "]");
             button.doClick();
@@ -259,19 +262,19 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
         if (title == null || !title.contains(" Configuration")) {
             return false;
         }
-        
+
         JTree tree = Common.getTree(window);
         if (tree == null) {
             throw new Exception("Configuration tree not found");
         }
-        
+
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Settings"}));
-        
+
         String readOnlyApiText = "Read-Only API";
         JCheckBox readOnlyApi = Common.getCheckBox(window, readOnlyApiText);
         if (readOnlyApi == null) {
@@ -281,7 +284,7 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Unselect checkbox: [" + readOnlyApiText + "]");
             readOnlyApi.setSelected(false);
         }
-        
+
         JTextField portNumber = Common.getTextField(window, 0);
         if (portNumber == null) {
             throw new Exception("API Port Number text field not found");
@@ -289,7 +292,7 @@ public class WindowEventListener implements AWTEventListener {
         String portText = Integer.toString(this.automater.getSettings().getPortNumber());
         this.automater.logMessage("Set API port textbox value: [" + portText + "]");
         portNumber.setText(portText);
-        
+
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
 
         String bypassOrderPrecautionsText = "Bypass Order Precautions for API Orders";
@@ -310,7 +313,7 @@ public class WindowEventListener implements AWTEventListener {
         okButton.doClick();
 
         this.automater.logMessage("Configuration settings updated.");
-        
+
         return true;
     }
 
@@ -318,21 +321,43 @@ public class WindowEventListener implements AWTEventListener {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
-        
+
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.equals("Existing session detected")) {
             String buttonText = "Exit Application";
             JButton button = Common.getButton(window, buttonText);
-            
+
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
-            
+
             return true;
         }
-        
+
+        return false;
+    }
+
+    private boolean HandleReloginRequiredWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.equals("Re-login is required")) {
+            String buttonText = "Re-login";
+            JButton button = Common.getButton(window, buttonText);
+
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
         return false;
     }
 
@@ -342,19 +367,19 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         String title = Common.getTitle(window);
-        
+
         if (title != null && title.contains("Financial Advisor Warning")) {
             String buttonText = "Yes";
             JButton button = Common.getButton(window, buttonText);
-            
+
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
-            
+
             return true;
         }
-        
+
         return false;
     }
 }
