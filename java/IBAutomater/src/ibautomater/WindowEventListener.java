@@ -328,12 +328,15 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.equals("Existing session detected")) {
-            String buttonText = isPerformingRelogin ? "Continue Login" : "Exit Application";
+            String buttonText = isPerformingRelogin ? "Reconnect This Session" : "Exit Application";
             JButton button = Common.getButton(window, buttonText);
 
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+            }
+            else {
+                this.automater.logMessage("Button not found: [" + buttonText + "]");
             }
 
             return true;
