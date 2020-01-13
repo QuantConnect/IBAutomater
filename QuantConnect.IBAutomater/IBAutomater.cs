@@ -213,6 +213,11 @@ namespace QuantConnect.IBAutomater
         /// <remarks>The IB Gateway application will be terminated</remarks>
         public void Stop()
         {
+            if (!IsRunning())
+            {
+                return;
+            }
+
             if (IsWindows)
             {
                 foreach (var process in Process.GetProcesses())
@@ -245,6 +250,8 @@ namespace QuantConnect.IBAutomater
                     // ignored
                 }
             }
+
+            _processId = 0;
         }
 
         /// <summary>
@@ -253,6 +260,11 @@ namespace QuantConnect.IBAutomater
         /// <returns>true if the IBGateway is running</returns>
         public bool IsRunning()
         {
+            if (_processId == 0)
+            {
+                return false;
+            }
+
             try
             {
                 Process.GetProcessById(_processId);
@@ -260,6 +272,7 @@ namespace QuantConnect.IBAutomater
             catch (Exception)
             {
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IsRunning({_processId}): False"));
+                _processId = 0;
                 return false;
             }
 
