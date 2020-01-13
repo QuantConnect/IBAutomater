@@ -34,6 +34,9 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
 
+        private bool _isStarting;
+        private int _processId;
+
         /// <summary>
         /// Event fired when the process writes to the output stream
         /// </summary>
@@ -74,7 +77,10 @@ namespace QuantConnect.IBAutomater
             automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
             automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [{e}]");
 
-            automater.Start(true);
+            if (!automater.Start(true))
+            {
+                Console.WriteLine("Error starting IBAutomater process.");
+            }
         }
 
         /// <summary>
@@ -101,72 +107,104 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
         /// <remarks>The IB Gateway application will be launched</remarks>
-        public void Start(bool waitForExit)
+        public bool Start(bool waitForExit)
         {
-            if (IsLinux)
+            if (IsRunning())
             {
-                // debug testing
-                if (!File.Exists("IBAutomater.sh"))
-                {
-                    throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
-                }
-
-                if (!File.Exists("IBAutomater.jar"))
-                {
-                    throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
-                }
-
-                // need permission for execution
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
-                ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                return true;
             }
 
-            var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-            var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
-
-            var process = new Process
+            if (_isStarting)
             {
-                StartInfo = new ProcessStartInfo(fileName, arguments)
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    CreateNoWindow = true
-                },
-                EnableRaisingEvents = true
-            };
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (e.Data != null)
-                {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (e.Data != null)
-                {
-                    ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
-                }
-            };
-
-            process.Exited += (sender, e) =>
-            {
-                Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
-            };
-
-            process.Start();
-
-            process.BeginErrorReadLine();
-            process.BeginOutputReadLine();
-
-            if (waitForExit)
-            {
-                process.WaitForExit();
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IBAutomater is already starting."));
+                return false;
             }
+
+            _isStarting = true;
+
+            try
+            {
+                if (IsLinux)
+                {
+                    // debug testing
+                    if (!File.Exists("IBAutomater.sh"))
+                    {
+                        throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    }
+
+                    if (!File.Exists("IBAutomater.jar"))
+                    {
+                        throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    }
+
+                    // need permission for execution
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
+                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                }
+
+                var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
+                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo(fileName, arguments)
+                    {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true
+                    },
+                    EnableRaisingEvents = true
+                };
+
+                process.OutputDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                    }
+                };
+
+                process.ErrorDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                    }
+                };
+
+                process.Exited += (sender, e) =>
+                {
+                    Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
+                };
+
+                var started = process.Start();
+                if (!started)
+                {
+                    throw new Exception("IBAutomater was unable to start the IBGateway process.");
+                }
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
+
+                _processId = process.Id;
+                _isStarting = false;
+
+                process.BeginErrorReadLine();
+                process.BeginOutputReadLine();
+
+                if (waitForExit)
+                {
+                    process.WaitForExit();
+                }
+            }
+            catch (Exception)
+            {
+                _isStarting = false;
+                throw;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -207,6 +245,27 @@ namespace QuantConnect.IBAutomater
                     // ignored
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns whether the IBGateway is running
+        /// </summary>
+        /// <returns>true if the IBGateway is running</returns>
+        public bool IsRunning()
+        {
+            try
+            {
+                Process.GetProcessById(_processId);
+            }
+            catch (Exception)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IsRunning({_processId}): False"));
+                return false;
+            }
+
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IsRunning({_processId}): True"));
+
+            return true;
         }
 
         private void ExecuteProcessAndWaitForExit(string fileName, string arguments)
