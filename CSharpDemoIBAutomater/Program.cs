@@ -9,7 +9,7 @@ namespace CSharpDemoIBAutomater
         public static void Main(string[] args)
         {
             // IBAutomater settings
-            var ibDirectory = "C:\\Jts";
+            var ibDirectory = IsLinux ? "~/Jts" : "C:\\Jts";
             var ibVersion = "974";
             var ibUserName = "myusername";
             var ibPassword = "mypassword";
@@ -25,16 +25,32 @@ namespace CSharpDemoIBAutomater
             automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [ExitCode:{e.ExitCode}]");
 
             // Start the IBAutomater
-            automater.Start(false);
+            if (!automater.Start(false))
+            {
+                Console.WriteLine("Failed to start IBAutomater");
+            }
 
             // Wait a few seconds for startup
             Console.WriteLine("IBAutomater started, waiting 30 seconds");
             Thread.Sleep(30000);
 
+            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
+
             // Stop the IBAutomater
             automater.Stop();
 
             Console.WriteLine("IBAutomater stopped");
+
+            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
+        }
+
+        private static bool IsLinux
+        {
+            get
+            {
+                var p = (int)Environment.OSVersion.Platform;
+                return p == 4 || p == 6 || p == 128;
+            }
         }
     }
 }
