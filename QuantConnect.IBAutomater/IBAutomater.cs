@@ -271,12 +271,9 @@ namespace QuantConnect.IBAutomater
             }
             catch (Exception)
             {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IsRunning({_processId}): False"));
                 _processId = 0;
                 return false;
             }
-
-            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IsRunning({_processId}): True"));
 
             return true;
         }
