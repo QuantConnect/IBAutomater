@@ -40,7 +40,6 @@ public class WindowEventListener implements AWTEventListener {
             this.put(WindowEvent.WINDOW_CLOSED, "WINDOW_CLOSED");
         }
     };
-    private boolean isPerformingRelogin = false;
 
     WindowEventListener(IBAutomater automater) {
         this.automater = automater;
@@ -231,8 +230,6 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            isPerformingRelogin = false;
-
             JMenuItem menuItem = Common.getMenuItem(this.automater.getMainWindow(), "Configure", "Settings");
             menuItem.doClick();
 
@@ -328,7 +325,7 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.equals("Existing session detected")) {
-            String buttonText = isPerformingRelogin ? "Reconnect This Session" : "Exit Application";
+            String buttonText = "Exit Application";
             JButton button = Common.getButton(window, buttonText);
 
             if (button != null) {
@@ -357,7 +354,6 @@ public class WindowEventListener implements AWTEventListener {
             JButton button = Common.getButton(window, buttonText);
 
             if (button != null) {
-                isPerformingRelogin = true;
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
