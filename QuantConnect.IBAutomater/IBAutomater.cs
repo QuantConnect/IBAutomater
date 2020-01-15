@@ -104,7 +104,7 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
-        /// Starts the IB Automater
+        /// Starts the IB Gateway
         /// </summary>
         /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
         /// <remarks>The IB Gateway application will be launched</remarks>
@@ -213,13 +213,11 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
-        /// Stops the IB Automater
+        /// Stops the IB Gateway
         /// </summary>
         /// <remarks>The IB Gateway application will be terminated</remarks>
         public void Stop()
         {
-            var stopped = false;
-
             lock (_locker)
             {
                 if (!IsRunning())
@@ -236,7 +234,6 @@ namespace QuantConnect.IBAutomater
                             if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
                             {
                                 process.Kill();
-                                stopped = true;
                             }
                         }
                         catch (Exception)
@@ -252,7 +249,6 @@ namespace QuantConnect.IBAutomater
                         Process.Start("pkill", "xvfb-run");
                         Process.Start("pkill", "java");
                         Process.Start("pkill", "Xvfb");
-                        stopped = true;
                     }
                     catch (Exception)
                     {
@@ -262,10 +258,21 @@ namespace QuantConnect.IBAutomater
 
                 _process = null;
             }
+        }
 
-            if (stopped)
+        /// <summary>
+        /// Restarts the IB Gateway
+        /// </summary>
+        /// <remarks>The IB Gateway application will be restarted</remarks>
+        public void Restart()
+        {
+            lock (_locker)
             {
+                Stop();
+
                 Thread.Sleep(2500);
+
+                Start(false);
             }
         }
 
