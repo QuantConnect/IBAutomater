@@ -34,8 +34,9 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
 
+        private readonly object _locker = new object();
         private bool _isStarting;
-        private int _processId;
+        private Process _process;
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -109,99 +110,103 @@ namespace QuantConnect.IBAutomater
         /// <remarks>The IB Gateway application will be launched</remarks>
         public bool Start(bool waitForExit)
         {
-            if (IsRunning())
+            lock (_locker)
             {
-                return true;
-            }
-
-            if (_isStarting)
-            {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IBAutomater is already starting."));
-                return false;
-            }
-
-            _isStarting = true;
-
-            try
-            {
-                if (IsLinux)
+                if (IsRunning())
                 {
-                    // debug testing
-                    if (!File.Exists("IBAutomater.sh"))
-                    {
-                        throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
-                    }
-
-                    if (!File.Exists("IBAutomater.jar"))
-                    {
-                        throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
-                    }
-
-                    // need permission for execution
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
-                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                    return true;
                 }
 
-                var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
-
-                var process = new Process
+                if (_isStarting)
                 {
-                    StartInfo = new ProcessStartInfo(fileName, arguments)
-                    {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden,
-                        CreateNoWindow = true
-                    },
-                    EnableRaisingEvents = true
-                };
-
-                process.OutputDataReceived += (sender, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
-                    }
-                };
-
-                process.ErrorDataReceived += (sender, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
-                    }
-                };
-
-                process.Exited += (sender, e) =>
-                {
-                    Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
-                };
-
-                var started = process.Start();
-                if (!started)
-                {
-                    throw new Exception("IBAutomater was unable to start the IBGateway process.");
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IBAutomater is already starting."));
+                    return true;
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
+                _process = null;
+                _isStarting = true;
 
-                _processId = process.Id;
-                _isStarting = false;
-
-                process.BeginErrorReadLine();
-                process.BeginOutputReadLine();
-
-                if (waitForExit)
+                try
                 {
-                    process.WaitForExit();
+                    if (IsLinux)
+                    {
+                        // debug testing
+                        if (!File.Exists("IBAutomater.sh"))
+                        {
+                            throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                        }
+
+                        if (!File.Exists("IBAutomater.jar"))
+                        {
+                            throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
+                        }
+
+                        // need permission for execution
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
+                        ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                    }
+
+                    var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
+                    var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
+
+                    var process = new Process
+                    {
+                        StartInfo = new ProcessStartInfo(fileName, arguments)
+                        {
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            UseShellExecute = false,
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                            CreateNoWindow = true
+                        },
+                        EnableRaisingEvents = true
+                    };
+
+                    process.OutputDataReceived += (sender, e) =>
+                    {
+                        if (e.Data != null)
+                        {
+                            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                        }
+                    };
+
+                    process.ErrorDataReceived += (sender, e) =>
+                    {
+                        if (e.Data != null)
+                        {
+                            ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                        }
+                    };
+
+                    process.Exited += (sender, e) =>
+                    {
+                        Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
+                    };
+
+                    var started = process.Start();
+                    if (!started)
+                    {
+                        throw new Exception("IBAutomater was unable to start the IBGateway process.");
+                    }
+
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
+
+                    _process = process;
+                    _isStarting = false;
+
+                    process.BeginErrorReadLine();
+                    process.BeginOutputReadLine();
+
+                    if (waitForExit)
+                    {
+                        process.WaitForExit();
+                    }
                 }
-            }
-            catch (Exception)
-            {
-                _isStarting = false;
-                throw;
+                catch (Exception)
+                {
+                    _isStarting = false;
+                    throw;
+                }
             }
 
             return true;
@@ -213,45 +218,55 @@ namespace QuantConnect.IBAutomater
         /// <remarks>The IB Gateway application will be terminated</remarks>
         public void Stop()
         {
-            if (!IsRunning())
-            {
-                return;
-            }
+            var stopped = false;
 
-            if (IsWindows)
+            lock (_locker)
             {
-                foreach (var process in Process.GetProcesses())
+                if (!IsRunning())
+                {
+                    return;
+                }
+
+                if (IsWindows)
+                {
+                    foreach (var process in Process.GetProcesses())
+                    {
+                        try
+                        {
+                            if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
+                            {
+                                process.Kill();
+                                stopped = true;
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            // ignored
+                        }
+                    }
+                }
+                else
                 {
                     try
                     {
-                        if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
-                        {
-                            process.Kill();
-                            Thread.Sleep(2500);
-                        }
+                        Process.Start("pkill", "xvfb-run");
+                        Process.Start("pkill", "java");
+                        Process.Start("pkill", "Xvfb");
+                        stopped = true;
                     }
                     catch (Exception)
                     {
                         // ignored
                     }
                 }
-            }
-            else
-            {
-                try
-                {
-                    Process.Start("pkill", "xvfb-run");
-                    Process.Start("pkill", "java");
-                    Process.Start("pkill", "Xvfb");
-                    Thread.Sleep(2500);
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
+
+                _process = null;
             }
 
-            _processId = 0;
+            if (stopped)
+            {
+                Thread.Sleep(2500);
+            }
         }
 
         /// <summary>
@@ -260,22 +275,26 @@ namespace QuantConnect.IBAutomater
         /// <returns>true if the IBGateway is running</returns>
         public bool IsRunning()
         {
-            if (_processId == 0)
+            lock (_locker)
             {
-                return false;
-            }
+                if (_isStarting)
+                {
+                    return true;
+                }
 
-            try
-            {
-                Process.GetProcessById(_processId);
-            }
-            catch (Exception)
-            {
-                _processId = 0;
-                return false;
-            }
+                if (_process == null)
+                {
+                    return false;
+                }
 
-            return true;
+                var exited = _process.HasExited;
+                if (exited)
+                {
+                    _process = null;
+                }
+
+                return !exited;
+            }
         }
 
         private void ExecuteProcessAndWaitForExit(string fileName, string arguments)
