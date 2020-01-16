@@ -14,7 +14,6 @@
 */
 
 using System;
-using System.Threading;
 using QuantConnect.IBAutomater;
 
 namespace CSharpDemoIBAutomater
@@ -40,15 +39,13 @@ namespace CSharpDemoIBAutomater
             automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [ExitCode:{e.ExitCode}]");
 
             // Start the IBAutomater
-            if (!automater.Start(false))
+            var result = automater.Start(false);
+            if (result.HasError)
             {
-                Console.WriteLine("Failed to start IBAutomater");
+                Console.WriteLine($"Failed to start IBAutomater - Code: {result.ErrorCode}, Message: {result.ErrorMessage}");
+                automater.Stop();
                 return;
             }
-
-            // Wait a few seconds for startup
-            Console.WriteLine("IBAutomater started, waiting 30 seconds");
-            Thread.Sleep(30000);
 
             Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
 

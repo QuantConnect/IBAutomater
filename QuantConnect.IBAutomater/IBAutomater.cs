@@ -36,6 +36,8 @@ namespace QuantConnect.IBAutomater
 
         private readonly object _locker = new object();
         private Process _process;
+        private StartResult _lastStartResult = StartResult.Success;
+        private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -71,16 +73,44 @@ namespace QuantConnect.IBAutomater
                 ibVersion = config["ib-version"].ToString();
             }
 
+            // Create a new instance of the IBAutomater class
             var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber);
 
-            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
-            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
-            automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [{e}]");
+            // Attach the event handlers
+            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
+            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
+            automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [ExitCode:{e.ExitCode}]");
 
-            if (!automater.Start(true))
+            // Start the IBAutomater
+            Console.WriteLine("===> Starting IBAutomater");
+            var result = automater.Start(false);
+            if (result.HasError)
             {
-                Console.WriteLine("Error starting IBAutomater process.");
+                Console.WriteLine($"Failed to start IBAutomater - Code: {result.ErrorCode}, Message: {result.ErrorMessage}");
+                automater.Stop();
+                return;
             }
+
+            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
+
+            // Restart the IBAutomater
+            Console.WriteLine("===> Restarting IBAutomater");
+            result = automater.Restart();
+            if (result.HasError)
+            {
+                Console.WriteLine($"Failed to restart IBAutomater - Code: {result.ErrorCode}, Message: {result.ErrorMessage}");
+                automater.Stop();
+                return;
+            }
+
+            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
+
+            // Stop the IBAutomater
+            Console.WriteLine("===> Stopping IBAutomater");
+            automater.Stop();
+            Console.WriteLine("IBAutomater stopped");
+
+            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
         }
 
         /// <summary>
@@ -107,30 +137,20 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
         /// <remarks>The IB Gateway application will be launched</remarks>
-        public bool Start(bool waitForExit)
+        public StartResult Start(bool waitForExit)
         {
             lock (_locker)
             {
                 if (IsRunning())
                 {
-                    return true;
+                    return StartResult.Success;
                 }
 
                 _process = null;
+                _lastStartResult = StartResult.Success;
 
                 if (IsLinux)
                 {
-                    // debug testing
-                    if (!File.Exists("IBAutomater.sh"))
-                    {
-                        throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
-                    }
-
-                    if (!File.Exists("IBAutomater.jar"))
-                    {
-                        throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
-                    }
-
                     // need permission for execution
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
@@ -157,6 +177,36 @@ namespace QuantConnect.IBAutomater
                     if (e.Data != null)
                     {
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+
+                        // login failed
+                        if (e.Data.Contains("Login failed"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // an existing session was detected
+                        else if (e.Data.Contains("Existing session detected"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // a security dialog (2FA/code card) was detected by IBAutomater
+                        else if (e.Data.Contains("Second Factor Authentication") ||
+                                 e.Data.Contains("Security Code Card Authentication") ||
+                                 e.Data.Contains("Enter security code"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // initialization completed
+                        else if (e.Data.Contains("Configuration settings updated"))
+                        {
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
                     }
                 };
 
@@ -173,10 +223,17 @@ namespace QuantConnect.IBAutomater
                     Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
                 };
 
-                var started = process.Start();
-                if (!started)
+                try
                 {
-                    throw new Exception("IBAutomater was unable to start the IBGateway process.");
+                    var started = process.Start();
+                    if (!started)
+                    {
+                        return new StartResult(ErrorCode.ProcessStartFailed);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return new StartResult(ErrorCode.ProcessStartFailed, exception.Message);
                 }
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
@@ -190,9 +247,25 @@ namespace QuantConnect.IBAutomater
                 {
                     process.WaitForExit();
                 }
+                else
+                {
+                    // wait for completion of IBGateway login and configuration
+                    var message = _ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromSeconds(60))
+                        ? "IB Automater initialized."
+                        : "IB Automater initialization timeout.";
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                    if (_lastStartResult.HasError)
+                    {
+                        message = $"IBAutomater error - Code: {_lastStartResult.ErrorCode} Message: {_lastStartResult.ErrorMessage}";
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                        return _lastStartResult;
+                    }
+                }
             }
 
-            return true;
+            return StartResult.Success;
         }
 
         /// <summary>
@@ -247,7 +320,7 @@ namespace QuantConnect.IBAutomater
         /// Restarts the IB Gateway
         /// </summary>
         /// <remarks>The IB Gateway application will be restarted</remarks>
-        public bool Restart()
+        public StartResult Restart()
         {
             lock (_locker)
             {

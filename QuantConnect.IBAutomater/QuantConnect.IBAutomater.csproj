@@ -49,6 +49,7 @@
     <Compile Include="IBAutomater.cs" />
     <Compile Include="ErrorDataReceivedEventArgs.cs" />
     <Compile Include="ExitedEventArgs.cs" />
+    <Compile Include="StartResult.cs" />
     <Compile Include="OutputDataReceivedEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
