@@ -148,6 +148,7 @@ namespace QuantConnect.IBAutomater
 
                 _process = null;
                 _lastStartResult = StartResult.Success;
+                _ibAutomaterInitializeEvent.Reset();
 
                 if (IsLinux)
                 {
