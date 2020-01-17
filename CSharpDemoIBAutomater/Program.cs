@@ -47,14 +47,10 @@ namespace CSharpDemoIBAutomater
                 return;
             }
 
-            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
-
             // Stop the IBAutomater
             automater.Stop();
 
             Console.WriteLine("IBAutomater stopped");
-
-            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
         }
 
         private static bool IsLinux

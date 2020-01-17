@@ -91,8 +91,6 @@ namespace QuantConnect.IBAutomater
                 return;
             }
 
-            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
-
             // Restart the IBAutomater
             Console.WriteLine("===> Restarting IBAutomater");
             result = automater.Restart();
@@ -103,14 +101,10 @@ namespace QuantConnect.IBAutomater
                 return;
             }
 
-            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
-
             // Stop the IBAutomater
             Console.WriteLine("===> Stopping IBAutomater");
             automater.Stop();
             Console.WriteLine("IBAutomater stopped");
-
-            Console.WriteLine("IBAutomater is " + (automater.IsRunning() ? "" : "not ") + "running");
         }
 
         /// <summary>
@@ -141,13 +135,18 @@ namespace QuantConnect.IBAutomater
         {
             lock (_locker)
             {
+                if (_lastStartResult.HasError)
+                {
+                    // IBAutomater errors are unrecoverable
+                    return _lastStartResult;
+                }
+
                 if (IsRunning())
                 {
                     return StartResult.Success;
                 }
 
                 _process = null;
-                _lastStartResult = StartResult.Success;
                 _ibAutomaterInitializeEvent.Reset();
 
                 if (IsLinux)
@@ -334,10 +333,19 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
+        /// Gets the last <see cref="StartResult"/> instance
+        /// </summary>
+        /// <returns>Returns the last start result instance</returns>
+        public StartResult GetLastStartResult()
+        {
+            return _lastStartResult;
+        }
+
+        /// <summary>
         /// Returns whether the IBGateway is running
         /// </summary>
         /// <returns>true if the IBGateway is running</returns>
-        public bool IsRunning()
+        private bool IsRunning()
         {
             lock (_locker)
             {
@@ -354,15 +362,6 @@ namespace QuantConnect.IBAutomater
 
                 return !exited;
             }
-        }
-
-        /// <summary>
-        /// Gets the last <see cref="StartResult"/> instance
-        /// </summary>
-        /// <returns></returns>
-        public StartResult GetLastStartResult()
-        {
-            return _lastStartResult;
         }
 
         private void ExecuteProcessAndWaitForExit(string fileName, string arguments)
