@@ -356,6 +356,15 @@ namespace QuantConnect.IBAutomater
             }
         }
 
+        /// <summary>
+        /// Gets the last <see cref="StartResult"/> instance
+        /// </summary>
+        /// <returns></returns>
+        public StartResult GetLastStartResult()
+        {
+            return _lastStartResult;
+        }
+
         private void ExecuteProcessAndWaitForExit(string fileName, string arguments)
         {
             var p = new Process
