@@ -34,6 +34,11 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
 
+        private readonly object _locker = new object();
+        private Process _process;
+        private StartResult _lastStartResult = StartResult.Success;
+        private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
+
         /// <summary>
         /// Event fired when the process writes to the output stream
         /// </summary>
@@ -68,13 +73,38 @@ namespace QuantConnect.IBAutomater
                 ibVersion = config["ib-version"].ToString();
             }
 
+            // Create a new instance of the IBAutomater class
             var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber);
 
-            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
-            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e}");
-            automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [{e}]");
+            // Attach the event handlers
+            automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
+            automater.ErrorDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
+            automater.Exited += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} IBAutomater exited [ExitCode:{e.ExitCode}]");
 
-            automater.Start(true);
+            // Start the IBAutomater
+            Console.WriteLine("===> Starting IBAutomater");
+            var result = automater.Start(false);
+            if (result.HasError)
+            {
+                Console.WriteLine($"Failed to start IBAutomater - Code: {result.ErrorCode}, Message: {result.ErrorMessage}");
+                automater.Stop();
+                return;
+            }
+
+            // Restart the IBAutomater
+            Console.WriteLine("===> Restarting IBAutomater");
+            result = automater.Restart();
+            if (result.HasError)
+            {
+                Console.WriteLine($"Failed to restart IBAutomater - Code: {result.ErrorCode}, Message: {result.ErrorMessage}");
+                automater.Stop();
+                return;
+            }
+
+            // Stop the IBAutomater
+            Console.WriteLine("===> Stopping IBAutomater");
+            automater.Stop();
+            Console.WriteLine("IBAutomater stopped");
         }
 
         /// <summary>
@@ -97,115 +127,240 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
-        /// Starts the IB Automater
+        /// Starts the IB Gateway
         /// </summary>
         /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
         /// <remarks>The IB Gateway application will be launched</remarks>
-        public void Start(bool waitForExit)
+        public StartResult Start(bool waitForExit)
         {
-            if (IsLinux)
+            lock (_locker)
             {
-                // debug testing
-                if (!File.Exists("IBAutomater.sh"))
+                if (_lastStartResult.HasError)
                 {
-                    throw new Exception($"IBAutomater.sh file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    // IBAutomater errors are unrecoverable
+                    return _lastStartResult;
                 }
 
-                if (!File.Exists("IBAutomater.jar"))
+                if (IsRunning())
                 {
-                    throw new Exception($"IBAutomater.jar file not found - current directory: {Directory.GetCurrentDirectory()}");
+                    return StartResult.Success;
                 }
 
-                // need permission for execution
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
-                ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                _process = null;
+                _ibAutomaterInitializeEvent.Reset();
+
+                if (IsLinux)
+                {
+                    // need permission for execution
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
+                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                }
+
+                var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
+                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo(fileName, arguments)
+                    {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        WindowStyle = ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true
+                    },
+                    EnableRaisingEvents = true
+                };
+
+                process.OutputDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+
+                        // login failed
+                        if (e.Data.Contains("Login failed"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // an existing session was detected
+                        else if (e.Data.Contains("Existing session detected"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // a security dialog (2FA/code card) was detected by IBAutomater
+                        else if (e.Data.Contains("Second Factor Authentication") ||
+                                 e.Data.Contains("Security Code Card Authentication") ||
+                                 e.Data.Contains("Enter security code"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                        // initialization completed
+                        else if (e.Data.Contains("Configuration settings updated"))
+                        {
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
+                    }
+                };
+
+                process.ErrorDataReceived += (sender, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                    }
+                };
+
+                process.Exited += (sender, e) =>
+                {
+                    Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
+                };
+
+                try
+                {
+                    var started = process.Start();
+                    if (!started)
+                    {
+                        return new StartResult(ErrorCode.ProcessStartFailed);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return new StartResult(ErrorCode.ProcessStartFailed, exception.Message);
+                }
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
+
+                _process = process;
+
+                process.BeginErrorReadLine();
+                process.BeginOutputReadLine();
+
+                if (waitForExit)
+                {
+                    process.WaitForExit();
+                }
+                else
+                {
+                    // wait for completion of IBGateway login and configuration
+                    var message = _ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromSeconds(60))
+                        ? "IB Automater initialized."
+                        : "IB Automater initialization timeout.";
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                    if (_lastStartResult.HasError)
+                    {
+                        message = $"IBAutomater error - Code: {_lastStartResult.ErrorCode} Message: {_lastStartResult.ErrorMessage}";
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                        return _lastStartResult;
+                    }
+                }
             }
 
-            var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-            var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
-
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo(fileName, arguments)
-                {
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    WindowStyle = ProcessWindowStyle.Hidden,
-                    CreateNoWindow = true
-                },
-                EnableRaisingEvents = true
-            };
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (e.Data != null)
-                {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (e.Data != null)
-                {
-                    ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
-                }
-            };
-
-            process.Exited += (sender, e) =>
-            {
-                Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
-            };
-
-            process.Start();
-
-            process.BeginErrorReadLine();
-            process.BeginOutputReadLine();
-
-            if (waitForExit)
-            {
-                process.WaitForExit();
-            }
+            return StartResult.Success;
         }
 
         /// <summary>
-        /// Stops the IB Automater
+        /// Stops the IB Gateway
         /// </summary>
         /// <remarks>The IB Gateway application will be terminated</remarks>
         public void Stop()
         {
-            if (IsWindows)
+            lock (_locker)
             {
-                foreach (var process in Process.GetProcesses())
+                if (!IsRunning())
+                {
+                    return;
+                }
+
+                if (IsWindows)
+                {
+                    foreach (var process in Process.GetProcesses())
+                    {
+                        try
+                        {
+                            if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
+                            {
+                                process.Kill();
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            // ignored
+                        }
+                    }
+                }
+                else
                 {
                     try
                     {
-                        if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
-                        {
-                            process.Kill();
-                            Thread.Sleep(2500);
-                        }
+                        Process.Start("pkill", "xvfb-run");
+                        Process.Start("pkill", "java");
+                        Process.Start("pkill", "Xvfb");
                     }
                     catch (Exception)
                     {
                         // ignored
                     }
                 }
+
+                _process = null;
             }
-            else
+        }
+
+        /// <summary>
+        /// Restarts the IB Gateway
+        /// </summary>
+        /// <remarks>The IB Gateway application will be restarted</remarks>
+        public StartResult Restart()
+        {
+            lock (_locker)
             {
-                try
+                Stop();
+
+                Thread.Sleep(2500);
+
+                return Start(false);
+            }
+        }
+
+        /// <summary>
+        /// Gets the last <see cref="StartResult"/> instance
+        /// </summary>
+        /// <returns>Returns the last start result instance</returns>
+        public StartResult GetLastStartResult()
+        {
+            return _lastStartResult;
+        }
+
+        /// <summary>
+        /// Returns whether the IBGateway is running
+        /// </summary>
+        /// <returns>true if the IBGateway is running</returns>
+        private bool IsRunning()
+        {
+            lock (_locker)
+            {
+                if (_process == null)
                 {
-                    Process.Start("pkill", "xvfb-run");
-                    Process.Start("pkill", "java");
-                    Process.Start("pkill", "Xvfb");
-                    Thread.Sleep(2500);
+                    return false;
                 }
-                catch (Exception)
+
+                var exited = _process.HasExited;
+                if (exited)
                 {
-                    // ignored
+                    _process = null;
                 }
+
+                return !exited;
             }
         }
 
