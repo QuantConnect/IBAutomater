@@ -217,9 +217,6 @@ namespace QuantConnect.IBAutomater
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
-                            // 2FA confirmation successful
-                            _twoFactorConfirmationPending = false;
-
                             _ibAutomaterInitializeEvent.Set();
                         }
                     }
@@ -282,6 +279,7 @@ namespace QuantConnect.IBAutomater
                             }
                             else
                             {
+                                // 2FA confirmation successful
                                 message = "IB Automater initialized.";
                             }
                         }
@@ -292,6 +290,9 @@ namespace QuantConnect.IBAutomater
                     }
 
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                    // reset the flag, this method is called multiple times
+                    _twoFactorConfirmationPending = false;
 
                     if (_lastStartResult.HasError)
                     {
