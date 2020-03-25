@@ -38,6 +38,7 @@ namespace QuantConnect.IBAutomater
         private Process _process;
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
+        private bool _twoFactorConfirmationPending;
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -192,9 +193,21 @@ namespace QuantConnect.IBAutomater
                             _ibAutomaterInitializeEvent.Set();
                         }
 
-                        // a security dialog (2FA/code card) was detected by IBAutomater
-                        else if (e.Data.Contains("Second Factor Authentication") ||
-                                 e.Data.Contains("Security Code Card Authentication") ||
+                        // a security dialog (2FA) was detected by IBAutomater
+                        else if (e.Data.Contains("Second Factor Authentication"))
+                        {
+                            if (e.Data.Contains("[WINDOW_OPENED]"))
+                            {
+                                // waiting for 2FA confirmation on IBKR mobile app
+                                const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
+                                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                                _twoFactorConfirmationPending = true;
+                            }
+                        }
+
+                        // a security dialog (code card) was detected by IBAutomater
+                        else if (e.Data.Contains("Security Code Card Authentication") ||
                                  e.Data.Contains("Enter security code"))
                         {
                             _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
@@ -204,9 +217,11 @@ namespace QuantConnect.IBAutomater
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
+                            // 2FA confirmation successful
+                            _twoFactorConfirmationPending = false;
+
                             _ibAutomaterInitializeEvent.Set();
                         }
-
                     }
                 };
 
@@ -250,9 +265,32 @@ namespace QuantConnect.IBAutomater
                 else
                 {
                     // wait for completion of IBGateway login and configuration
-                    var message = _ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromSeconds(60))
-                        ? "IB Automater initialized."
-                        : "IB Automater initialization timeout.";
+                    string message;
+                    if (_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromSeconds(60)))
+                    {
+                        message = "IB Automater initialized.";
+                    }
+                    else
+                    {
+                        if (_twoFactorConfirmationPending)
+                        {
+                            // wait for completion of two-factor authentication
+                            if (!_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromMinutes(3)))
+                            {
+                                _lastStartResult = new StartResult(ErrorCode.TwoFactorConfirmationTimeout);
+                                message = "IB Automater 2FA timeout.";
+                            }
+                            else
+                            {
+                                message = "IB Automater initialized.";
+                            }
+                        }
+                        else
+                        {
+                            message = "IB Automater initialization timeout.";
+                        }
+                    }
+
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
 
                     if (_lastStartResult.HasError)
