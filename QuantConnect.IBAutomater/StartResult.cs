@@ -43,9 +43,14 @@ namespace QuantConnect.IBAutomater
         ExistingSessionDetected,
 
         /// <summary>
-        /// A security dialog (2FA/code card) was detected
+        /// A security dialog (code card) was detected
         /// </summary>
-        SecurityDialogDetected
+        SecurityDialogDetected,
+
+        /// <summary>
+        /// Two factor authentication request was not confirmed within 3 minutes
+        /// </summary>
+        TwoFactorConfirmationTimeout
     }
 
     /// <summary>
@@ -71,8 +76,13 @@ namespace QuantConnect.IBAutomater
                 },
                 {
                     ErrorCode.SecurityDialogDetected,
-                    "A security dialog was detected for Second Factor/Code Card Authentication. " +
-                    "Please opt out of the Secure Login System: Manage Account > Security > Secure Login System > SLS Opt Out"
+                    "A security dialog was detected for Code Card Authentication. " +
+                    "Only 'Seamless Authentication' via IBKR mobile app is supported."
+                },
+                {
+                    ErrorCode.TwoFactorConfirmationTimeout,
+                    "The two factor authentication request timed out. " +
+                    "The request must be confirmed within 3 minutes."
                 }
             };
 
