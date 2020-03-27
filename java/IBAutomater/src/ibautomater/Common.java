@@ -29,6 +29,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -64,6 +65,18 @@ public class Common {
         Common.loadComponents(container, JToggleButton.class, buttons);
         for (Component component : buttons) {
             JToggleButton button = (JToggleButton)component;
+            String buttonText = button.getText();
+            if (buttonText == null || !button.getText().equals(text)) continue;
+            return button;
+        }
+        return null;
+    }
+
+    public static JRadioButton getRadioButton(Container container, String text) {
+        ArrayList<Component> buttons = new ArrayList<>();
+        Common.loadComponents(container, JRadioButton.class, buttons);
+        for (Component component : buttons) {
+            JRadioButton button = (JRadioButton)component;
             String buttonText = button.getText();
             if (buttonText == null || !button.getText().equals(text)) continue;
             return button;

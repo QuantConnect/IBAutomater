@@ -157,6 +157,8 @@ namespace QuantConnect.IBAutomater
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
                 }
 
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion}"));
+
                 var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
                 var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
 

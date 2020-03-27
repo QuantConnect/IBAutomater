@@ -35,22 +35,22 @@ public class IBAutomater {
         options.addOption(new Option("pwd", true, "Password"));
         options.addOption(new Option("mode", true, "Trading mode"));
         options.addOption(new Option("port", true, "IB socket port"));
-        
+
         DefaultParser parser = new DefaultParser();
         CommandLine commandLine = parser.parse(options, args);
-        
+
         if (!(commandLine.hasOption("ibdir") && commandLine.hasOption("user") && commandLine.hasOption("pwd") && commandLine.hasOption("mode") && commandLine.hasOption("port"))) {
             HelpFormatter formatter = new HelpFormatter();
             formatter.printHelp("IBAutomater", options);
             System.exit(1);
         }
-        
+
         String ibDirectory = commandLine.getOptionValue("ibdir");
         String userName = commandLine.getOptionValue("user");
         String password = commandLine.getOptionValue("pwd");
         String tradingMode = commandLine.getOptionValue("mode");
         int portNumber = Integer.parseInt(commandLine.getOptionValue("port"));
-        
+
         IBAutomater automater = new IBAutomater(ibDirectory, userName, password, tradingMode, portNumber);
         automater.startIBGateway();
     }
@@ -61,9 +61,9 @@ public class IBAutomater {
 
     public void startIBGateway() {
         this.logMessage("StartIBGateway(): starting IBGateway");
-        
+
         Toolkit.getDefaultToolkit().addAWTEventListener(new WindowEventListener(this), 64L);
-        
+
         String[] args = new String[] { this.settings.getIbDirectory() };
         try {
             GWClient.main(args);
