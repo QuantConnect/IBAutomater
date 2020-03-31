@@ -232,7 +232,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleInitializationWindow(Window window, int eventId) {
+    private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
         }
@@ -241,15 +241,19 @@ public class WindowEventListener implements AWTEventListener {
 
         if (title != null && title.contains("Starting application...")) {
             JMenuItem menuItem = Common.getMenuItem(this.automater.getMainWindow(), "Configure", "Settings");
-            menuItem.doClick();
-
-            return true;
+            if (menuItem != null) {
+                menuItem.doClick();
+                return true;
+            }
+            else {
+                throw new Exception("MenuItem not found: [Configure/Settings]");
+            }
         }
 
         return false;
     }
 
-    private boolean HandlePaperTradingAccountWindow(Window window, int eventId) {
+    private boolean HandlePaperTradingAccountWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -265,6 +269,10 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Click button: [" + buttonText + "]");
             button.doClick();
         }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
         return true;
     }
 
@@ -327,7 +335,7 @@ public class WindowEventListener implements AWTEventListener {
         return true;
     }
 
-    private boolean HandleExistingSessionDetectedWindow(Window window, int eventId) {
+    private boolean HandleExistingSessionDetectedWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -343,7 +351,7 @@ public class WindowEventListener implements AWTEventListener {
                 button.doClick();
             }
             else {
-                this.automater.logMessage("Button not found: [" + buttonText + "]");
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
 
             return true;
@@ -352,7 +360,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleReloginRequiredWindow(Window window, int eventId) {
+    private boolean HandleReloginRequiredWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -367,6 +375,9 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
 
             return true;
         }
@@ -374,7 +385,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) {
+    private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -388,6 +399,9 @@ public class WindowEventListener implements AWTEventListener {
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
 
             return true;
@@ -429,6 +443,9 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Click radio button: [" + buttonText + "]");
                 radioButton.doClick();
             }
+            else {
+                throw new Exception("Radio button not found: [" + buttonText + "]");
+            }
 
             buttonText = "Apply";
             JButton button = Common.getButton(window, buttonText);
@@ -437,6 +454,9 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
 
             buttonText = "OK";
             button = Common.getButton(window, buttonText);
@@ -444,6 +464,9 @@ public class WindowEventListener implements AWTEventListener {
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
 
             return true;

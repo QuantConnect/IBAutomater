@@ -54,7 +54,7 @@ public class Common {
         for (Component component : buttons) {
             JButton button = (JButton)component;
             String buttonText = button.getText();
-            if (buttonText == null || !button.getText().equals(text)) continue;
+            if (buttonText == null || !buttonText.equalsIgnoreCase(text)) continue;
             return button;
         }
         return null;
@@ -66,7 +66,7 @@ public class Common {
         for (Component component : buttons) {
             JToggleButton button = (JToggleButton)component;
             String buttonText = button.getText();
-            if (buttonText == null || !button.getText().equals(text)) continue;
+            if (buttonText == null || !buttonText.equalsIgnoreCase(text)) continue;
             return button;
         }
         return null;
@@ -78,7 +78,7 @@ public class Common {
         for (Component component : buttons) {
             JRadioButton button = (JRadioButton)component;
             String buttonText = button.getText();
-            if (buttonText == null || !button.getText().equals(text)) continue;
+            if (buttonText == null || !buttonText.equalsIgnoreCase(text)) continue;
             return button;
         }
         return null;
@@ -90,7 +90,7 @@ public class Common {
         for (Component component : labels) {
             JLabel label = (JLabel)component;
             String labelText = label.getText();
-            if (labelText == null || !labelText.contains(text)) continue;
+            if (labelText == null || !labelText.toLowerCase().contains(text.toLowerCase())) continue;
             return label;
         }
         return null;
@@ -109,7 +109,7 @@ public class Common {
             if (!menu.getText().equals(menuText)) continue;
             for (int j = 0; j < menu.getItemCount(); ++j) {
                 JMenuItem menuItem = menu.getItem(j);
-                if (menuItem == null || !menuItem.getText().equals(menuItemText)) continue;
+                if (menuItem == null || !menuItem.getText().equalsIgnoreCase(menuItemText)) continue;
                 return menuItem;
             }
         }
@@ -122,7 +122,7 @@ public class Common {
         for (Component component : checkBoxes) {
             JCheckBox checkBox = (JCheckBox)component;
             String checkBoxText = checkBox.getText();
-            if (checkBoxText == null || !checkBoxText.equals(text)) continue;
+            if (checkBoxText == null || !checkBoxText.equalsIgnoreCase(text)) continue;
             return checkBox;
         }
         return null;
@@ -150,7 +150,7 @@ public class Common {
         for (int i = 0; i < parentNode.getChildCount(); ++i) {
             DefaultMutableTreeNode node = (DefaultMutableTreeNode)parentNode.getChildAt(i);
             TreePath treePath = new TreePath(node.getPath());
-            if (treePath.toString().equals(path.toString())) {
+            if (treePath.toString().equalsIgnoreCase(path.toString())) {
                 tree.setSelectionPath(treePath);
                 return true;
             }
