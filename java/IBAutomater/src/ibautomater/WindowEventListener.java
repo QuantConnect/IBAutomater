@@ -19,10 +19,13 @@ import java.awt.AWTEvent;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -52,6 +55,9 @@ public class WindowEventListener implements AWTEventListener {
 
         if (this.handledEvents.containsKey(eventId)) {
             this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "]");
+        }
+        else {
+            return;
         }
 
         try {
@@ -85,9 +91,12 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleFinancialAdvisorWarningWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleExitSessionSettingWindow(window, eventId)) {
+                return;
+            }
         }
         catch (Exception e) {
-            this.automater.logError(e);
+            this.automater.logError(e.toString());
         }
     }
 
@@ -207,13 +216,14 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     private boolean HandleMainWindow(Window window, int eventId) {
-        if (eventId != WindowEvent.WINDOW_OPENED) {
+        if (eventId != WindowEvent.WINDOW_ACTIVATED &&
+            eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
 
         String title = Common.getTitle(window);
 
-        if (title != null && title.contains("IB Gateway") && title.contains("API Account")) {
+        if (title != null && title.contains("IB Gateway")) {
             this.automater.setMainWindow(window);
 
             return true;
@@ -222,7 +232,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleInitializationWindow(Window window, int eventId) {
+    private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
         }
@@ -231,15 +241,19 @@ public class WindowEventListener implements AWTEventListener {
 
         if (title != null && title.contains("Starting application...")) {
             JMenuItem menuItem = Common.getMenuItem(this.automater.getMainWindow(), "Configure", "Settings");
-            menuItem.doClick();
-
-            return true;
+            if (menuItem != null) {
+                menuItem.doClick();
+                return true;
+            }
+            else {
+                throw new Exception("MenuItem not found: [Configure/Settings]");
+            }
         }
 
         return false;
     }
 
-    private boolean HandlePaperTradingAccountWindow(Window window, int eventId) {
+    private boolean HandlePaperTradingAccountWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -255,6 +269,10 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Click button: [" + buttonText + "]");
             button.doClick();
         }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
         return true;
     }
 
@@ -317,7 +335,7 @@ public class WindowEventListener implements AWTEventListener {
         return true;
     }
 
-    private boolean HandleExistingSessionDetectedWindow(Window window, int eventId) {
+    private boolean HandleExistingSessionDetectedWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -333,7 +351,7 @@ public class WindowEventListener implements AWTEventListener {
                 button.doClick();
             }
             else {
-                this.automater.logMessage("Button not found: [" + buttonText + "]");
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
 
             return true;
@@ -342,7 +360,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleReloginRequiredWindow(Window window, int eventId) {
+    private boolean HandleReloginRequiredWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -357,6 +375,9 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
 
             return true;
         }
@@ -364,7 +385,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) {
+    private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -378,6 +399,74 @@ public class WindowEventListener implements AWTEventListener {
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleExitSessionSettingWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_ACTIVATED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.contains("Exit Session Setting")) {
+            LocalDateTime time = java.time.LocalDateTime.now();
+
+            // disable logout/restart by setting logoff/restart time to the next day
+            time = time.minusMinutes(10);
+
+            // set new time
+            String timeText = DateTimeFormatter.ofPattern("hh:mm").format(time);
+            JTextField timeTextField = Common.getTextField(window, 0);
+
+            if (timeTextField == null) {
+                throw new Exception("Time text field not found");
+            }
+
+            this.automater.logMessage("Set time: [" + timeText + "]");
+            timeTextField.setText(timeText);
+
+            // set AM/PM
+            String formattedTime = DateTimeFormatter.ofPattern("hh:mm a").format(time);
+            String buttonText = formattedTime.endsWith("AM") ? "AM" : "PM";
+            JRadioButton radioButton = Common.getRadioButton(window, buttonText);
+
+            if (radioButton != null) {
+                this.automater.logMessage("Click radio button: [" + buttonText + "]");
+                radioButton.doClick();
+            }
+            else {
+                throw new Exception("Radio button not found: [" + buttonText + "]");
+            }
+
+            buttonText = "Apply";
+            JButton button = Common.getButton(window, buttonText);
+
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
+
+            buttonText = "OK";
+            button = Common.getButton(window, buttonText);
+
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
 
             return true;
