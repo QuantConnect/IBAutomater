@@ -103,20 +103,17 @@ public class Common {
     }
 
     public static JMenuItem getMenuItem(Container container, String menuText, String menuItemText) {
-        try {
-            JMenuBar menuBar = ((JFrame) container).getJMenuBar();
-            for (int i = 0; i < menuBar.getMenuCount(); ++i) {
-                JMenu menu = menuBar.getMenu(i);
-                if (!menu.getText().equals(menuText)) continue;
-                for (int j = 0; j < menu.getItemCount(); ++j) {
-                    JMenuItem menuItem = menu.getItem(j);
-                    if (menuItem == null || !menuItem.getText().equalsIgnoreCase(menuItemText)) continue;
-                    return menuItem;
-                }
+        if (container == null) return null;
+        JMenuBar menuBar = ((JFrame) container).getJMenuBar();
+        if (menuBar == null) return null;
+        for (int i = 0; i < menuBar.getMenuCount(); ++i) {
+            JMenu menu = menuBar.getMenu(i);
+            if (!menu.getText().equals(menuText)) continue;
+            for (int j = 0; j < menu.getItemCount(); ++j) {
+                JMenuItem menuItem = menu.getItem(j);
+                if (menuItem == null || !menuItem.getText().equalsIgnoreCase(menuItemText)) continue;
+                return menuItem;
             }
-        }
-        catch (Exception e) {
-            return null;
         }
         return null;
     }
