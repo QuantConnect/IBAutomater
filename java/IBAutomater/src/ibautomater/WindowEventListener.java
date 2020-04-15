@@ -240,7 +240,27 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            JMenuItem menuItem = Common.getMenuItem(this.automater.getMainWindow(), "Configure", "Settings");
+            Window mainWindow = this.automater.getMainWindow();
+            JMenuItem menuItem = null;
+
+            if (mainWindow == null) {
+                this.automater.logMessage("Main window is still null!");
+                this.automater.logMessage("Finding main window...");
+                for(Window w : Window.getWindows()) {
+                    String wTitle = Common.getTitle(w);
+                    if (wTitle.contains("IB Gateway")) {
+                        menuItem = Common.getMenuItem(w, "Configure", "Settings");
+                        if (menuItem != null) {
+                            this.automater.logMessage("Found main window!");
+                            this.automater.setMainWindow(w);
+                        }
+                    }
+                }
+            }
+            else {
+                menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
+            }
+
             if (menuItem != null) {
                 menuItem.doClick();
                 return true;
