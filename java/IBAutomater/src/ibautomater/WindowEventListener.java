@@ -107,7 +107,7 @@ public class WindowEventListener implements AWTEventListener {
 
         String title = Common.getTitle(window);
 
-        if (title != null && !title.equals("IB Gateway")) {
+        if (title == null || !title.equals("IB Gateway")) {
             return false;
         }
 
