@@ -70,9 +70,6 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandlePasswordNoticeWindow(window, eventId)) {
                 return;
             }
-            if (this.HandleMainWindow(window, eventId)) {
-                return;
-            }
             if (this.HandleInitializationWindow(window, eventId)) {
                 return;
             }
@@ -215,23 +212,6 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleMainWindow(Window window, int eventId) {
-        if (eventId != WindowEvent.WINDOW_ACTIVATED &&
-            eventId != WindowEvent.WINDOW_OPENED) {
-            return false;
-        }
-
-        String title = Common.getTitle(window);
-
-        if (title != null && title.contains("IB Gateway")) {
-            this.automater.setMainWindow(window);
-
-            return true;
-        }
-
-        return false;
-    }
-
     private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
@@ -240,25 +220,18 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            Window mainWindow = this.automater.getMainWindow();
             JMenuItem menuItem = null;
 
-            if (mainWindow == null) {
-                this.automater.logMessage("Main window is still null!");
-                this.automater.logMessage("Finding main window...");
-                for(Window w : Window.getWindows()) {
-                    String wTitle = Common.getTitle(w);
-                    if (wTitle.contains("IB Gateway")) {
-                        menuItem = Common.getMenuItem(w, "Configure", "Settings");
-                        if (menuItem != null) {
-                            this.automater.logMessage("Found main window!");
-                            this.automater.setMainWindow(w);
-                        }
+            this.automater.logMessage("Finding main window...");
+            for(Window w : Window.getWindows()) {
+                String wTitle = Common.getTitle(w);
+                if (wTitle.contains("IB Gateway")) {
+                    menuItem = Common.getMenuItem(w, "Configure", "Settings");
+                    if (menuItem != null) {
+                        this.automater.logMessage("Found main window!");
+                        this.automater.setMainWindow(w);
                     }
                 }
-            }
-            else {
-                menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
             }
 
             if (menuItem != null) {
