@@ -22,6 +22,10 @@ import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
@@ -220,19 +224,20 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            JMenuItem menuItem = null;
+            // The main window might not be completely initialized at this point,
+            // so we start a task and wait 5 seconds maximum for the window to be ready.
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
+            Window mainWindow = future.get(5, TimeUnit.SECONDS);
+            executor.shutdown();
 
-            this.automater.logMessage("Finding main window...");
-            for(Window w : Window.getWindows()) {
-                String wTitle = Common.getTitle(w);
-                if (wTitle.contains("IB Gateway")) {
-                    menuItem = Common.getMenuItem(w, "Configure", "Settings");
-                    if (menuItem != null) {
-                        this.automater.logMessage("Found main window!");
-                        this.automater.setMainWindow(w);
-                    }
-                }
+            if (mainWindow == null) {
+                throw new Exception("Main window not found.");
             }
+
+            this.automater.setMainWindow(mainWindow);
+
+            JMenuItem menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
 
             if (menuItem != null) {
                 menuItem.doClick();
