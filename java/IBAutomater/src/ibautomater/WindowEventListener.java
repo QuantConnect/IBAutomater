@@ -22,6 +22,10 @@ import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
@@ -68,9 +72,6 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandlePasswordNoticeWindow(window, eventId)) {
-                return;
-            }
-            if (this.HandleMainWindow(window, eventId)) {
                 return;
             }
             if (this.HandleInitializationWindow(window, eventId)) {
@@ -215,23 +216,6 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleMainWindow(Window window, int eventId) {
-        if (eventId != WindowEvent.WINDOW_ACTIVATED &&
-            eventId != WindowEvent.WINDOW_OPENED) {
-            return false;
-        }
-
-        String title = Common.getTitle(window);
-
-        if (title != null && title.contains("IB Gateway")) {
-            this.automater.setMainWindow(window);
-
-            return true;
-        }
-
-        return false;
-    }
-
     private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
@@ -240,26 +224,20 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            Window mainWindow = this.automater.getMainWindow();
-            JMenuItem menuItem = null;
+            // The main window might not be completely initialized at this point,
+            // so we start a task and wait 5 seconds maximum for the window to be ready.
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
+            Window mainWindow = future.get(5, TimeUnit.SECONDS);
+            executor.shutdown();
 
             if (mainWindow == null) {
-                this.automater.logMessage("Main window is still null!");
-                this.automater.logMessage("Finding main window...");
-                for(Window w : Window.getWindows()) {
-                    String wTitle = Common.getTitle(w);
-                    if (wTitle.contains("IB Gateway")) {
-                        menuItem = Common.getMenuItem(w, "Configure", "Settings");
-                        if (menuItem != null) {
-                            this.automater.logMessage("Found main window!");
-                            this.automater.setMainWindow(w);
-                        }
-                    }
-                }
+                throw new Exception("Main window not found.");
             }
-            else {
-                menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
-            }
+
+            this.automater.setMainWindow(mainWindow);
+
+            JMenuItem menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
 
             if (menuItem != null) {
                 menuItem.doClick();
