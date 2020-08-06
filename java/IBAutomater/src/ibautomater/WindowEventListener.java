@@ -22,10 +22,13 @@ import java.awt.event.WindowEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JMenuItem;
@@ -216,7 +219,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
+    private boolean HandleInitializationWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
         }
@@ -225,27 +228,18 @@ public class WindowEventListener implements AWTEventListener {
 
         if (title != null && title.contains("Starting application...")) {
             // The main window might not be completely initialized at this point,
-            // so we start a task and wait 5 seconds maximum for the window to be ready.
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
-            Window mainWindow = future.get(5, TimeUnit.SECONDS);
-            executor.shutdown();
+            // so we start a task and wait 30 seconds maximum for the window to be ready.
 
-            if (mainWindow == null) {
-                throw new Exception("Main window not found.");
-            }
-
-            this.automater.setMainWindow(mainWindow);
-
-            JMenuItem menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
-
-            if (menuItem != null) {
-                menuItem.doClick();
-                return true;
-            }
-            else {
-                throw new Exception("MenuItem not found: [Configure/Settings]");
-            }
+            new Thread(()-> {
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
+                try {
+                    future.get(30, TimeUnit.SECONDS);
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    this.automater.logError(e.toString());
+                }
+                executor.shutdown();
+            }).start();
         }
 
         return false;
