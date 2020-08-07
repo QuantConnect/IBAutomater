@@ -19,20 +19,15 @@ import java.awt.AWTEvent;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JMenuItem;
-import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -410,48 +405,8 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Exit Session Setting")) {
-            LocalDateTime time = java.time.LocalDateTime.now();
-
-            // disable logout/restart by setting logoff/restart time to the next day
-            time = time.minusMinutes(10);
-
-            // set new time
-            String timeText = DateTimeFormatter.ofPattern("hh:mm").format(time);
-            JTextField timeTextField = Common.getTextField(window, 0);
-
-            if (timeTextField == null) {
-                throw new Exception("Time text field not found");
-            }
-
-            this.automater.logMessage("Set time: [" + timeText + "]");
-            timeTextField.setText(timeText);
-
-            // set AM/PM
-            String formattedTime = DateTimeFormatter.ofPattern("hh:mm a").format(time);
-            String buttonText = formattedTime.endsWith("AM") ? "AM" : "PM";
-            JRadioButton radioButton = Common.getRadioButton(window, buttonText);
-
-            if (radioButton != null) {
-                this.automater.logMessage("Click radio button: [" + buttonText + "]");
-                radioButton.doClick();
-            }
-            else {
-                throw new Exception("Radio button not found: [" + buttonText + "]");
-            }
-
-            buttonText = "Apply";
+            String buttonText = "OK";
             JButton button = Common.getButton(window, buttonText);
-
-            if (button != null) {
-                this.automater.logMessage("Click button: [" + buttonText + "]");
-                button.doClick();
-            }
-            else {
-                throw new Exception("Button not found: [" + buttonText + "]");
-            }
-
-            buttonText = "OK";
-            button = Common.getButton(window, buttonText);
 
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
