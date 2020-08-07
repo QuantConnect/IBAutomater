@@ -38,6 +38,10 @@ public class GetMainWindowTask implements Callable<Window> {
                     JMenuItem menuItem = Common.getMenuItem(w, "Configure", "Settings");
                     if (menuItem != null) {
                         this.automater.logMessage("Found main window.");
+
+                        this.automater.setMainWindow(w);
+                        menuItem.doClick();
+
                         return w;
                     }
                 }
