@@ -19,13 +19,15 @@ import java.awt.AWTEvent;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
-import javax.swing.JMenuItem;
-import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -68,9 +70,6 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandlePasswordNoticeWindow(window, eventId)) {
-                return;
-            }
-            if (this.HandleMainWindow(window, eventId)) {
                 return;
             }
             if (this.HandleInitializationWindow(window, eventId)) {
@@ -215,24 +214,7 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
-    private boolean HandleMainWindow(Window window, int eventId) {
-        if (eventId != WindowEvent.WINDOW_ACTIVATED &&
-            eventId != WindowEvent.WINDOW_OPENED) {
-            return false;
-        }
-
-        String title = Common.getTitle(window);
-
-        if (title != null && title.contains("IB Gateway")) {
-            this.automater.setMainWindow(window);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    private boolean HandleInitializationWindow(Window window, int eventId) throws Exception {
+    private boolean HandleInitializationWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_CLOSED) {
             return false;
         }
@@ -240,34 +222,19 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Starting application...")) {
-            Window mainWindow = this.automater.getMainWindow();
-            JMenuItem menuItem = null;
+            // The main window might not be completely initialized at this point,
+            // so we start a task and wait 30 seconds maximum for the window to be ready.
 
-            if (mainWindow == null) {
-                this.automater.logMessage("Main window is still null!");
-                this.automater.logMessage("Finding main window...");
-                for(Window w : Window.getWindows()) {
-                    String wTitle = Common.getTitle(w);
-                    if (wTitle.contains("IB Gateway")) {
-                        menuItem = Common.getMenuItem(w, "Configure", "Settings");
-                        if (menuItem != null) {
-                            this.automater.logMessage("Found main window!");
-                            this.automater.setMainWindow(w);
-                        }
-                    }
+            new Thread(()-> {
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
+                try {
+                    future.get(30, TimeUnit.SECONDS);
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    this.automater.logError(e.toString());
                 }
-            }
-            else {
-                menuItem = Common.getMenuItem(mainWindow, "Configure", "Settings");
-            }
-
-            if (menuItem != null) {
-                menuItem.doClick();
-                return true;
-            }
-            else {
-                throw new Exception("MenuItem not found: [Configure/Settings]");
-            }
+                executor.shutdown();
+            }).start();
         }
 
         return false;
@@ -438,48 +405,8 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Exit Session Setting")) {
-            LocalDateTime time = java.time.LocalDateTime.now();
-
-            // disable logout/restart by setting logoff/restart time to the next day
-            time = time.minusMinutes(10);
-
-            // set new time
-            String timeText = DateTimeFormatter.ofPattern("hh:mm").format(time);
-            JTextField timeTextField = Common.getTextField(window, 0);
-
-            if (timeTextField == null) {
-                throw new Exception("Time text field not found");
-            }
-
-            this.automater.logMessage("Set time: [" + timeText + "]");
-            timeTextField.setText(timeText);
-
-            // set AM/PM
-            String formattedTime = DateTimeFormatter.ofPattern("hh:mm a").format(time);
-            String buttonText = formattedTime.endsWith("AM") ? "AM" : "PM";
-            JRadioButton radioButton = Common.getRadioButton(window, buttonText);
-
-            if (radioButton != null) {
-                this.automater.logMessage("Click radio button: [" + buttonText + "]");
-                radioButton.doClick();
-            }
-            else {
-                throw new Exception("Radio button not found: [" + buttonText + "]");
-            }
-
-            buttonText = "Apply";
+            String buttonText = "OK";
             JButton button = Common.getButton(window, buttonText);
-
-            if (button != null) {
-                this.automater.logMessage("Click button: [" + buttonText + "]");
-                button.doClick();
-            }
-            else {
-                throw new Exception("Button not found: [" + buttonText + "]");
-            }
-
-            buttonText = "OK";
-            button = Common.getButton(window, buttonText);
 
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");

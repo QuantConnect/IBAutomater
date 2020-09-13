@@ -14,10 +14,12 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using Newtonsoft.Json.Linq;
+using NodaTime;
 
 namespace QuantConnect.IBAutomater
 {
@@ -39,6 +41,36 @@ namespace QuantConnect.IBAutomater
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
         private bool _twoFactorConfirmationPending;
+
+        private enum Region { America, Europe, Asia }
+
+        // Source: https://ibkr.info/article/2816
+        private readonly Dictionary<string, Region> _ibServerMap = new Dictionary<string, Region>
+        {
+            { "gdc1.ibllc.com", Region.America },
+            { "ndc1.ibllc.com", Region.America },
+            { "ndc1_hb1.ibllc.com", Region.America },
+            { "cdc1.ibllc.com", Region.America },
+            { "cdc1_hb1.ibllc.com", Region.America },
+
+            { "zdc1.ibllc.com", Region.Europe },
+            { "zdc1_hb1.ibllc.com", Region.Europe },
+
+            { "hdc1.ibllc.com", Region.Asia },
+            { "hdc1_hb1.ibllc.com", Region.Asia },
+            { "mcgw1.ibllc.com.cn", Region.Asia },
+            { "mcgw1_hb1.ibllc.com.cn", Region.Asia }
+        };
+
+        private string _ibServerName;
+        private Region _ibServerRegion = Region.America;
+
+        private static readonly DateTimeZone TimeZoneNewYork = DateTimeZoneProviders.Tzdb["America/New_York"];
+        private static readonly DateTimeZone TimeZoneZurich = DateTimeZoneProviders.Tzdb["Europe/Zurich"];
+        private static readonly DateTimeZone TimeZoneHongKong = DateTimeZoneProviders.Tzdb["Asia/Hong_Kong"];
+
+        // used to limit logging
+        private bool _isWithinScheduledServerResetTimesLastValue;
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -184,7 +216,11 @@ namespace QuantConnect.IBAutomater
                         // login failed
                         if (e.Data.Contains("Login failed"))
                         {
-                            _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                            if (!IsWithinScheduledServerResetTimes())
+                            {
+                                _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                            }
+
                             _ibAutomaterInitializeEvent.Set();
                         }
 
@@ -219,6 +255,9 @@ namespace QuantConnect.IBAutomater
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
+                            // load server name and region
+                            LoadIbServerInformation();
+
                             _ibAutomaterInitializeEvent.Set();
                         }
                     }
@@ -383,6 +422,84 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
+        /// This function is used to decide whether or not we should kill an algorithm
+        /// when we lose contact with IB servers. IB performs server resets nightly
+        /// and on Fridays they take everything down, so we'll prevent killing algos
+        /// during the scheduled reset times.
+        /// </summary>
+        public bool IsWithinScheduledServerResetTimes()
+        {
+            // Use schedule based on server region:
+            // https://www.interactivebrokers.com/en/index.php?f=2225
+
+            bool result;
+            var utcTime = DateTime.UtcNow;
+            var time = utcTime.ConvertFromUtc(TimeZoneNewYork);
+            var timeOfDay = time.TimeOfDay;
+
+            // Note: we add 15 minutes *before* and *after* all time ranges for safety margin
+
+            // During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
+            if (time.DayOfWeek == DayOfWeek.Friday && timeOfDay > new TimeSpan(22, 45, 0) ||
+                // Occasionally the disconnection due to the IB reset period might last
+                // much longer than expected during weekends (even up to the cash sync time).
+                time.DayOfWeek == DayOfWeek.Saturday)
+            {
+                // Friday: 23:00 - 03:00 ET for all regions
+                result = true;
+            }
+            else
+            {
+                switch (_ibServerRegion)
+                {
+                    case Region.Europe:
+                    {
+                        // Saturday - Thursday: 05:45 - 06:45 CET
+                        var euTime = utcTime.ConvertFromUtc(TimeZoneZurich);
+                        var euTimeOfDay = euTime.TimeOfDay;
+                        result = euTimeOfDay > new TimeSpan(5, 30, 0) && euTimeOfDay < new TimeSpan(7, 0, 0);
+                    }
+                        break;
+
+                    case Region.Asia:
+                    {
+                        // Saturday - Thursday: First reset: 16:30 - 17:00 ET
+                        if (timeOfDay > new TimeSpan(16, 15, 0) && timeOfDay < new TimeSpan(17, 15, 0))
+                        {
+                            result = true;
+                        }
+                        else
+                        {
+                            // Saturday - Thursday: Second reset: 20:15 - 21:00 HKT
+                            var hkTime = utcTime.ConvertFromUtc(TimeZoneHongKong);
+                            var hkTimeOfDay = hkTime.TimeOfDay;
+                            result = hkTimeOfDay > new TimeSpan(20, 0, 0) && hkTimeOfDay < new TimeSpan(21, 15, 0);
+                        }
+                    }
+                        break;
+
+                    case Region.America:
+                    default:
+                    {
+                        // Saturday - Thursday: 23:45 - 00:45 ET
+                        result = timeOfDay > new TimeSpan(23, 30, 0) || timeOfDay < new TimeSpan(1, 0, 0);
+                    }
+                        break;
+                }
+            }
+
+            if (result != _isWithinScheduledServerResetTimesLastValue)
+            {
+                _isWithinScheduledServerResetTimesLastValue = result;
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                    $"InteractiveBrokersBrokerage.IsWithinScheduledServerResetTimes(): {result}"));
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Returns whether the IBGateway is running
         /// </summary>
         /// <returns>true if the IBGateway is running</returns>
@@ -453,5 +570,54 @@ namespace QuantConnect.IBAutomater
         }
 
         private static bool IsWindows => !IsLinux;
+
+        private void LoadIbServerInformation()
+        {
+            // After a successful login, IBGateway saves the connected/redirected host name to the Peer key in the jts.ini file.
+            var iniFileName = Path.Combine(_ibDirectory, "jts.ini");
+
+            // Note: Attempting to connect to a different server via jts.ini will not change anything.
+            // IB will route you back to the server they have set for you on their server side.
+            // You need to request a server change and only then will your system connect to the changed server address.
+
+            if (File.Exists(iniFileName))
+            {
+                const string key = "Peer=";
+                foreach (var line in File.ReadLines(iniFileName))
+                {
+                    if (line.StartsWith(key))
+                    {
+                        var value = line.Substring(key.Length);
+                        _ibServerName = value.Substring(0, value.IndexOf(':'));
+
+                        if (!_ibServerMap.TryGetValue(_ibServerName, out _ibServerRegion))
+                        {
+                            _ibServerRegion = Region.America;
+
+                            ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(
+                                $"LoadIbServerInformation(): Unknown server name: {_ibServerName}, region set to {_ibServerRegion}"));
+                        }
+
+                        // known server name and region
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                            $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
+                        return;
+                    }
+                }
+
+                _ibServerRegion = Region.America;
+
+                ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(
+                    $"LoadIbServerInformation(): Unable to find the server name in the IB ini file: {iniFileName}, region set to {_ibServerRegion}"));
+            }
+            else
+            {
+                ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(
+                    $"LoadIbServerInformation(): IB ini file not found: {iniFileName}"));
+            }
+
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
+        }
     }
 }
