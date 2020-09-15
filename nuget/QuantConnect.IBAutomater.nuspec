@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>QuantConnect.IBAutomater</id>
-    <version>1.0.1</version>
+    <version>1.0.30</version>
     <authors>QuantConnect Corp.</authors>
     <owners>QuantConnect Corp.</owners>
     <license type="expression">Apache-2.0</license>
@@ -17,11 +17,11 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="QuantConnect.IBAutomater.exe" target="lib\net45" />
-    <file src="QuantConnect.IBAutomater.pdb" target="lib\net45" />
+    <file src="net452\QuantConnect.IBAutomater.exe" target="lib\net45" />
+    <file src="net452\QuantConnect.IBAutomater.pdb" target="lib\net45" />
     <file src="QuantConnect.IBAutomater.targets" target="build" />
-    <file src="IBAutomater.bat" target="build" />
-    <file src="IBAutomater.sh" target="build" />
+		<file src="net452\IBAutomater.bat" target="build" />
+		<file src="net452\IBAutomater.sh" target="build" />
     <file src="IBAutomater.jar" target="build" />
     <file src="commons-cli-1.4.jar" target="build" />
   </files>
