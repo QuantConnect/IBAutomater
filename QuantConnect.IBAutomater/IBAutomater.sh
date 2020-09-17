@@ -1,5 +1,5 @@
 #!/bin/bash
-if type Xvfb &>/dev/null
+if type Xvfb &>/dev/null; then
   pkg="Xvfb"
   pkill Xvfb
   pkill xvfb-run
