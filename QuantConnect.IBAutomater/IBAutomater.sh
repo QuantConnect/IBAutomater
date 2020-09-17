@@ -6,6 +6,6 @@ if type Xvfb &>/dev/null; then
   export DISPLAY=:1
   xvfb-run java -cp $1/ibgateway/$2/jars/*:./*:./IBAutomater.jar ibautomater.IBAutomater -ibdir $1 -user $3 -pwd $4 -mode $5 -port $6
 else
-  error_exit "Required dependency Xvfb is NOT installed! Aborting." 
+  echo "Required dependency Xvfb is NOT installed! Aborting." 1>&2
   exit 1
 fi
