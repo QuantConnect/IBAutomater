@@ -1,6 +1,5 @@
 #!/bin/bash
 if type Xvfb &>/dev/null; then
-  pkg="Xvfb"
   pkill Xvfb
   pkill xvfb-run
   Xvfb :1 -screen 0 1024x768x24 2>&1 >/dev/null &
