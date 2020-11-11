@@ -29,6 +29,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
@@ -92,6 +93,18 @@ public class Common {
             String labelText = label.getText();
             if (labelText == null || !labelText.toLowerCase().contains(text.toLowerCase())) continue;
             return label;
+        }
+        return null;
+    }
+
+    public static JOptionPane getOptionPane(Container container, String text) {
+        ArrayList<Component> optionPanes = new ArrayList<>();
+        Common.loadComponents(container, JOptionPane.class, optionPanes);
+        for (Component component : optionPanes) {
+            JOptionPane optionPane = (JOptionPane)component;
+            String optionPaneText = optionPane.getMessage().toString();
+            if (optionPaneText == null || !optionPaneText.toLowerCase().contains(text.toLowerCase())) continue;
+            return optionPane;
         }
         return null;
     }

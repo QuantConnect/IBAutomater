@@ -252,6 +252,13 @@ namespace QuantConnect.IBAutomater
                             _ibAutomaterInitializeEvent.Set();
                         }
 
+                        // the IBGateway version is no longer supported
+                        else if (e.Data.Contains("is no longer supported"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.UnsupportedVersion);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
