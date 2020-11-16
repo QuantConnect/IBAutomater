@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JOptionPane;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -76,6 +77,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandlePaperTradingAccountWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleUnsupportedVersionWindow(window, eventId)) {
                 return;
             }
             if (this.HandleConfigurationWindow(window, eventId)) {
@@ -250,6 +254,38 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         String buttonText = "I understand and accept";
+        JButton button = Common.getButton(window, buttonText);
+
+        if (button != null) {
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            button.doClick();
+        }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
+        return true;
+    }
+
+    private boolean HandleUnsupportedVersionWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+        if (title != null) {
+            return false;
+        }
+
+        JOptionPane optionPane = Common.getOptionPane(window, "is no longer supported");
+        if (optionPane == null) {
+            return false;
+        }
+
+        String message = optionPane.getMessage().toString().replaceAll("\\<.*?>","").replace("\n", " ");
+        this.automater.logMessage("IBGateway message: [" + message + "]");
+
+        String buttonText = "OK";
         JButton button = Common.getButton(window, buttonText);
 
         if (button != null) {
