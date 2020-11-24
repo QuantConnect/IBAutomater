@@ -33,6 +33,11 @@ namespace QuantConnect.IBAutomater
         ProcessStartFailed,
 
         /// <summary>
+        /// A Java exception was thrown
+        /// </summary>
+        JavaException,
+
+        /// <summary>
         /// The login failed
         /// </summary>
         LoginFailed,
@@ -69,6 +74,10 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.ProcessStartFailed,
                     "The IBAutomater was unable to start the IBGateway process."
+                },
+                {
+                    ErrorCode.JavaException,
+                    "A Java exception was thrown."
                 },
                 {
                     ErrorCode.LoginFailed,
