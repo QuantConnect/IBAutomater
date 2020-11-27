@@ -259,6 +259,13 @@ namespace QuantConnect.IBAutomater
                             _ibAutomaterInitializeEvent.Set();
                         }
 
+                        // a Java exception was thrown
+                        if (e.Data.StartsWith("Exception"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
@@ -275,6 +282,13 @@ namespace QuantConnect.IBAutomater
                     if (e.Data != null)
                     {
                         ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+
+                        // a Java exception was thrown
+                        if (e.Data.StartsWith("Exception"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
                     }
                 };
 
