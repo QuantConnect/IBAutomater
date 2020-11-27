@@ -33,17 +33,14 @@ public class GetMainWindowTask implements Callable<Window> {
             this.automater.logMessage("Finding main window...");
 
             for(Window w : Window.getWindows()) {
-                String wTitle = Common.getTitle(w);
-                if (wTitle.contains("IB Gateway")) {
-                    JMenuItem menuItem = Common.getMenuItem(w, "Configure", "Settings");
-                    if (menuItem != null) {
-                        this.automater.logMessage("Found main window.");
+                JMenuItem menuItem = Common.getMenuItem(w, "Configure", "Settings");
+                if (menuItem != null) {
+                    this.automater.logMessage("Found main window.");
 
-                        this.automater.setMainWindow(w);
-                        menuItem.doClick();
+                    this.automater.setMainWindow(w);
+                    menuItem.doClick();
 
-                        return w;
-                    }
+                    return w;
                 }
             }
 
