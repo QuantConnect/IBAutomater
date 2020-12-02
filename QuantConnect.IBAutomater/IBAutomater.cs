@@ -191,8 +191,20 @@ namespace QuantConnect.IBAutomater
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion}"));
 
+                var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
+                if (!Directory.Exists(ibGatewayVersionPath))
+                {
+                    return new StartResult(ErrorCode.IbGatewayVersionNotInstalled, $"Version: {_ibVersion}");
+                }
+
+                var jreInstallPath = GetJreInstallPath();
+                if (string.IsNullOrWhiteSpace(jreInstallPath))
+                {
+                    return new StartResult(ErrorCode.JavaNotFound);
+                }
+
                 var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber}";
+                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber} {jreInstallPath}";
 
                 var process = new Process
                 {
@@ -639,6 +651,44 @@ namespace QuantConnect.IBAutomater
 
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
                 $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
+        }
+
+        private string GetJreInstallPath()
+        {
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Searching for TWS JRE path"));
+
+            // Find TWS Java location (depends on OS and IBGateway version)
+            var install4JPath = $"{_ibDirectory}/ibgateway/{_ibVersion}/.install4j";
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Install4J path: {install4JPath}"));
+
+            foreach (var fileName in new[] { "pref_jre.cfg", "inst_jre.cfg" })
+            {
+                var install4JConfigFileName = $"{install4JPath}/{fileName}";
+                if (File.Exists(install4JConfigFileName))
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"File found: {install4JConfigFileName}"));
+
+                    var jreInstallPath = File.ReadAllText(install4JConfigFileName)
+                        .Replace("\r", "")
+                        .Replace("\n", "");
+
+                    if (Directory.Exists(jreInstallPath))
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Directory found: {jreInstallPath}"));
+                        return jreInstallPath;
+                    }
+                    else
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Directory not found: {jreInstallPath}"));
+                    }
+                }
+                else
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"File not found: {install4JConfigFileName}"));
+                }
+            }
+
+            return null;
         }
     }
 }
