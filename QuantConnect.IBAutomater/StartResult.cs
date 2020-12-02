@@ -33,6 +33,16 @@ namespace QuantConnect.IBAutomater
         ProcessStartFailed,
 
         /// <summary>
+        /// The IBGateway version is not installed
+        /// </summary>
+        IbGatewayVersionNotInstalled,
+
+        /// <summary>
+        /// The Java Runtime was not found
+        /// </summary>
+        JavaNotFound,
+
+        /// <summary>
         /// A Java exception was thrown
         /// </summary>
         JavaException,
@@ -74,6 +84,14 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.ProcessStartFailed,
                     "The IBAutomater was unable to start the IBGateway process."
+                },
+                {
+                    ErrorCode.IbGatewayVersionNotInstalled,
+                    "The IBGateway version is not installed."
+                },
+                {
+                    ErrorCode.JavaNotFound,
+                    "The Java Runtime was not found."
                 },
                 {
                     ErrorCode.JavaException,

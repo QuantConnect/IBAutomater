@@ -110,7 +110,10 @@ public class WindowEventListener implements AWTEventListener {
 
         String title = Common.getTitle(window);
 
-        if (title == null || !title.equals("IB Gateway")) {
+        if (title == null ||
+            (!title.equals("IB Gateway") &&
+             // v981
+             !title.equals("Interactive Brokers Gateway"))) {
             return false;
         }
 
@@ -333,6 +336,16 @@ public class WindowEventListener implements AWTEventListener {
         String portText = Integer.toString(this.automater.getSettings().getPortNumber());
         this.automater.logMessage("Set API port textbox value: [" + portText + "]");
         portNumber.setText(portText);
+
+        String createApiLogText = "Create API message log file";
+        JCheckBox createApiLog = Common.getCheckBox(window, createApiLogText);
+        if (createApiLog == null) {
+            throw new Exception("'Create API message log file' check box not found");
+        }
+        if (!createApiLog.isSelected()) {
+            this.automater.logMessage("Select checkbox: [" + createApiLogText + "]");
+            createApiLog.setSelected(true);
+        }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
 
