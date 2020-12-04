@@ -204,7 +204,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {_password} {_tradingMode} {_portNumber} {jreInstallPath}";
+                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {EscapePassword(_password)} {_tradingMode} {_portNumber} {jreInstallPath}";
 
                 var process = new Process
                 {
@@ -689,6 +689,13 @@ namespace QuantConnect.IBAutomater
             }
 
             return null;
+        }
+
+        private string EscapePassword(string password)
+        {
+            return IsWindows
+                ? password.Replace("&", "^&").Replace("|", "^|")
+                : password;
         }
     }
 }
