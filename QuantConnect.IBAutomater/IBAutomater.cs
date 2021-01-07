@@ -29,6 +29,8 @@ namespace QuantConnect.IBAutomater
     /// </summary>
     public class IBAutomater
     {
+        private static TimeSpan _initializationTimeout = TimeSpan.FromSeconds(180);
+
         private readonly string _ibDirectory;
         private readonly string _ibVersion;
         private readonly string _userName;
@@ -322,7 +324,7 @@ namespace QuantConnect.IBAutomater
                     return new StartResult(ErrorCode.ProcessStartFailed, exception.Message);
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id}"));
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
 
@@ -337,7 +339,7 @@ namespace QuantConnect.IBAutomater
                 {
                     // wait for completion of IBGateway login and configuration
                     string message;
-                    if (_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromSeconds(60)))
+                    if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                     {
                         message = "IB Automater initialized.";
                     }
