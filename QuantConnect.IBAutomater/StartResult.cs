@@ -68,6 +68,11 @@ namespace QuantConnect.IBAutomater
         TwoFactorConfirmationTimeout,
 
         /// <summary>
+        /// The IBAutomater initialization timed out
+        /// </summary>
+        InitializationTimeout,
+
+        /// <summary>
         /// The IBGateway version is no longer supported
         /// </summary>
         UnsupportedVersion
@@ -115,6 +120,10 @@ namespace QuantConnect.IBAutomater
                     ErrorCode.TwoFactorConfirmationTimeout,
                     "The two factor authentication request timed out. " +
                     "The request must be confirmed within 3 minutes."
+                },
+                {
+                    ErrorCode.InitializationTimeout,
+                    "The IBAutomater initialization timed out."
                 },
                 {
                     ErrorCode.UnsupportedVersion,
