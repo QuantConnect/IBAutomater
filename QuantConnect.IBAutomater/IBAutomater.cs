@@ -321,7 +321,9 @@ namespace QuantConnect.IBAutomater
                 }
                 catch (Exception exception)
                 {
-                    return new StartResult(ErrorCode.ProcessStartFailed, exception.Message);
+                    return new StartResult(
+                        ErrorCode.ProcessStartFailed,
+                        exception.Message.Replace(_password, "***"));
                 }
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - InitializationTimeout:{_initializationTimeout}"));
@@ -361,6 +363,7 @@ namespace QuantConnect.IBAutomater
                         }
                         else
                         {
+                            _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                             message = "IB Automater initialization timeout.";
                         }
                     }
