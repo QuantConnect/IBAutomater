@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>QuantConnect.IBAutomater</id>
-    <version>1.0.39</version>
+    <version>1.0.44</version>
     <authors>QuantConnect Corp.</authors>
     <owners>QuantConnect Corp.</owners>
     <license type="expression">Apache-2.0</license>
@@ -10,7 +10,7 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>QuantConnect IBAutomater package</description>
     <releaseNotes>QuantConnect IBAutomater package</releaseNotes>
-    <copyright>Copyright 2019</copyright>
+    <copyright>Copyright 2021</copyright>
     <tags>QuantConnect IBAutomater</tags>
     <dependencies>
         <group targetFramework=".NETFramework4.5.2">
@@ -43,9 +43,9 @@
 		<file src="net452\QuantConnect.IBAutomater.pdb" target="lib/net452" />
 		<file src="net452\QuantConnect.IBAutomater.exe" target="lib/netcoreapp3.1" />
 		<file src="net452\QuantConnect.IBAutomater.pdb" target="lib/netcoreapp3.1" />
-		<file src="QuantConnect.IBAutomater.targets" target="build" />
-		<file src="net452\IBAutomater.bat" target="build" />
-		<file src="net452\IBAutomater.sh" target="build" />
+    <file src="QuantConnect.IBAutomater.targets" target="build" />
+    <file src="net452\IBAutomater.bat" target="build" />
+    <file src="net452\IBAutomater.sh" target="build" />
     <file src="IBAutomater.jar" target="build" />
     <file src="commons-cli-1.4.jar" target="build" />
   </files>
