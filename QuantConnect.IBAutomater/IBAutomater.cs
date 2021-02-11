@@ -280,6 +280,13 @@ namespace QuantConnect.IBAutomater
                             _ibAutomaterInitializeEvent.Set();
                         }
 
+                        // API support is not available for accounts that support free trading
+                        else if (e.Data.Contains("API support is not available"))
+                        {
+                            _lastStartResult = new StartResult(ErrorCode.ApiSupportNotAvailable);
+                            _ibAutomaterInitializeEvent.Set();
+                        }
+
                         // initialization completed
                         else if (e.Data.Contains("Configuration settings updated"))
                         {
