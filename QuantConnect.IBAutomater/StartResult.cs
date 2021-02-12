@@ -75,7 +75,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// The IBGateway version is no longer supported
         /// </summary>
-        UnsupportedVersion
+        UnsupportedVersion,
+
+        /// <summary>
+        /// API support is not available for accounts that support free trading
+        /// </summary>
+        ApiSupportNotAvailable
     }
 
     /// <summary>
@@ -128,6 +133,11 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.UnsupportedVersion,
                     "The IBGateway version is no longer supported."
+                },
+                {
+                    ErrorCode.ApiSupportNotAvailable,
+                    "API support is not available for accounts that support free trading. " +
+                    "Please upgrade your plan from IBKR Lite to IBKR Pro."
                 }
             };
 

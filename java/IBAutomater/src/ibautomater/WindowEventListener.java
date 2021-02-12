@@ -97,6 +97,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleExitSessionSettingWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleApiNotAvailableWindow(window, eventId)) {
+                return;
+            }
         }
         catch (Exception e) {
             this.automater.logError(e.toString());
@@ -463,6 +466,40 @@ public class WindowEventListener implements AWTEventListener {
             }
             else {
                 throw new Exception("Button not found: [" + buttonText + "]");
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleApiNotAvailableWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title == null) {
+            JTextPane textPane = Common.getTextPane(window);
+            String text = "";
+            if (textPane != null) {
+                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+            }
+
+            // log the message to capture future unhandled messages
+            this.automater.logMessage(text);
+
+            if (!text.contains("API support is not available for accounts that support free trading."))
+            {
+                return false;
+            }
+
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
             }
 
             return true;
