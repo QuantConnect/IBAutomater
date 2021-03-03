@@ -2,10 +2,10 @@
 
 #### Create the NuGet package file
 
-- Set the version number in the `QuantConnect.IBAutomater.nuspec` file
+- Set the version number in the `QuantConnect.IBAutomater.csproj` file
 - Run the following command:
 ```
-nuget pack QuantConnect.IBAutomater.nuspec
+dotnet pack
 ```
 
 #### Set the NuGet API key
