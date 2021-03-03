@@ -3,7 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
     <Copyright>Copyright ©  2019</Copyright>
-    <Version>1.0.48</Version>
+    <Version>1.0.51</Version>
     <Description>QuantConnect IBAutomater</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/QuantConnect/IBAutomater</PackageProjectUrl>
@@ -11,19 +11,23 @@
   <ItemGroup>
     <None Include="IBAutomater.bat" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>lib/net5.0;lib/netstandard2.0</PackagePath>
+      <PackagePath>contentFiles/any/any/</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </None>
     <None Include="IBAutomater.sh" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>lib/net5.0;lib/netstandard2.0</PackagePath>
+      <PackagePath>contentFiles/any/any/</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </None>
     <None Include="../java/IBAutomater/dist/IBAutomater.jar" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>lib/net5.0;lib/netstandard2.0</PackagePath>
+      <PackagePath>contentFiles/any/any/</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </None>
     <None Include="../java/IBAutomater/dist/lib/commons-cli-1.4.jar" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>lib/net5.0;lib/netstandard2.0</PackagePath>
+      <PackagePath>contentFiles/any/any/</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
     </None>
   </ItemGroup>
   <ItemGroup>
