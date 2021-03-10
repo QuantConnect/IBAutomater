@@ -9,22 +9,12 @@
     <PackageProjectUrl>https://github.com/QuantConnect/IBAutomater</PackageProjectUrl>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="IBAutomater.bat" Pack="true">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>contentFiles/any/any/</PackagePath>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-    </None>
     <None Include="IBAutomater.sh" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <PackagePath>contentFiles/any/any/</PackagePath>
       <PackageCopyToOutput>true</PackageCopyToOutput>
     </None>
     <None Include="../java/IBAutomater/dist/IBAutomater.jar" Pack="true">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <PackagePath>contentFiles/any/any/</PackagePath>
-      <PackageCopyToOutput>true</PackageCopyToOutput>
-    </None>
-    <None Include="../java/IBAutomater/dist/lib/commons-cli-1.4.jar" Pack="true">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <PackagePath>contentFiles/any/any/</PackagePath>
       <PackageCopyToOutput>true</PackageCopyToOutput>
