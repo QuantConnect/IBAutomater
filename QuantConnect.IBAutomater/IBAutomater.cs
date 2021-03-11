@@ -77,6 +77,10 @@ namespace QuantConnect.IBAutomater
         // used to limit logging
         private bool _isWithinScheduledServerResetTimesLastValue;
 
+        private string _ibGatewayLogFileName;
+        private int _logLinesRead;
+        private readonly Timer _timerLogReader;
+
         /// <summary>
         /// Event fired when the process writes to the output stream
         /// </summary>
@@ -167,6 +171,8 @@ namespace QuantConnect.IBAutomater
             _password = password;
             _tradingMode = tradingMode;
             _portNumber = portNumber;
+
+            _timerLogReader = new Timer(LogReaderTimerCallback, null, TimeSpan.Zero, TimeSpan.Zero);
         }
 
         /// <summary>
@@ -215,6 +221,10 @@ namespace QuantConnect.IBAutomater
 
                 UpdateIbGatewayConfiguration();
 
+                _ibGatewayLogFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
+
+                _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
                 string fileName;
                 string arguments;
                 if (IsWindows)
@@ -234,8 +244,6 @@ namespace QuantConnect.IBAutomater
                 {
                     StartInfo = new ProcessStartInfo(fileName, arguments)
                     {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                         CreateNoWindow = true
@@ -243,8 +251,6 @@ namespace QuantConnect.IBAutomater
                     EnableRaisingEvents = true
                 };
 
-                process.OutputDataReceived += OnProcessOutputDataReceived;
-                process.ErrorDataReceived += OnProcessErrorDataReceived;
                 process.Exited += OnProcessExited;
 
                 try
@@ -265,9 +271,6 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - Name:{process.ProcessName} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
-
-                process.BeginErrorReadLine();
-                process.BeginOutputReadLine();
 
                 if (waitForExit)
                 {
@@ -322,14 +325,56 @@ namespace QuantConnect.IBAutomater
             return StartResult.Success;
         }
 
-        private void OnProcessOutputDataReceived(object sender, DataReceivedEventArgs e)
+        private void LogReaderTimerCallback(object _)
         {
-            if (e.Data != null)
+            if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
             {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                return;
+            }
+
+            using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                fileStream.Seek(0, SeekOrigin.Begin);
+
+                using (var reader = new StreamReader(fileStream))
+                {
+                    var lines = new List<string>();
+                    string line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        lines.Add(line);
+                    }
+
+                    var totalLines = lines.Count;
+                    if (totalLines < _logLinesRead)
+                    {
+                        // log file was rewritten by a restart of IBGateway
+                        _logLinesRead = 0;
+                    }
+
+                    var newLinesCount = totalLines - _logLinesRead;
+                    var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
+                    _logLinesRead = totalLines;
+
+                    if (newLinesCount > 0)
+                    {
+                        foreach (var newLine in newLines)
+                        {
+                            OnProcessOutputDataReceived(newLine);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void OnProcessOutputDataReceived(string text)
+        {
+            if (text != null)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(text));
 
                 // login failed
-                if (e.Data.Contains("Login failed"))
+                if (text.Contains("Login failed"))
                 {
                     if (!IsWithinScheduledServerResetTimes())
                     {
@@ -340,16 +385,16 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // an existing session was detected
-                else if (e.Data.Contains("Existing session detected"))
+                else if (text.Contains("Existing session detected"))
                 {
                     _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // a security dialog (2FA) was detected by IBAutomater
-                else if (e.Data.Contains("Second Factor Authentication"))
+                else if (text.Contains("Second Factor Authentication"))
                 {
-                    if (e.Data.Contains("[WINDOW_OPENED]"))
+                    if (text.Contains("[WINDOW_OPENED]"))
                     {
                         // waiting for 2FA confirmation on IBKR mobile app
                         const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
@@ -360,35 +405,35 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // a security dialog (code card) was detected by IBAutomater
-                else if (e.Data.Contains("Security Code Card Authentication") || e.Data.Contains("Enter security code"))
+                else if (text.Contains("Security Code Card Authentication") || text.Contains("Enter security code"))
                 {
                     _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // the IBGateway version is no longer supported
-                else if (e.Data.Contains("is no longer supported"))
+                else if (text.Contains("is no longer supported"))
                 {
                     _lastStartResult = new StartResult(ErrorCode.UnsupportedVersion);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // a Java exception was thrown
-                if (e.Data.StartsWith("Exception"))
+                if (text.StartsWith("Exception"))
                 {
-                    _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
+                    _lastStartResult = new StartResult(ErrorCode.JavaException, text);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // API support is not available for accounts that support free trading
-                else if (e.Data.Contains("API support is not available"))
+                else if (text.Contains("API support is not available"))
                 {
                     _lastStartResult = new StartResult(ErrorCode.ApiSupportNotAvailable);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // initialization completed
-                else if (e.Data.Contains("Configuration settings updated"))
+                else if (text.Contains("Configuration settings updated"))
                 {
                     // load server name and region
                     LoadIbServerInformation();
@@ -396,24 +441,9 @@ namespace QuantConnect.IBAutomater
                     _ibAutomaterInitializeEvent.Set();
                 }
 
-                else if (e.Data.Contains("Restart in progress"))
+                else if (text.Contains("Restart in progress"))
                 {
                     _isRestartInProgress = true;
-                }
-            }
-        }
-
-        private void OnProcessErrorDataReceived(object sender, DataReceivedEventArgs e)
-        {
-            if (e.Data != null)
-            {
-                ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
-
-                // a Java exception was thrown
-                if (e.Data.StartsWith("Exception"))
-                {
-                    _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
-                    _ibAutomaterInitializeEvent.Set();
                 }
             }
         }
@@ -424,16 +454,21 @@ namespace QuantConnect.IBAutomater
             {
                 // find new IBGateway process (created by auto-restart)
 
-                //_ibAutomaterInitializeEvent.Reset();
+                _ibAutomaterInitializeEvent.Reset();
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
-                Thread.Sleep(30000);
+                if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                    return;
+                }
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
 
                 var process = Process.GetProcessesByName("ibgateway").FirstOrDefault();
                 if (process == null)
                 {
-                    // TODO: ProcessRestartFailed
-                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                    _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
                 }
                 else
                 {
@@ -446,20 +481,14 @@ namespace QuantConnect.IBAutomater
                     // replace process
                     _process = process;
 
-                    // TODO: we cannot attach these event handlers as we didn't start the process (with output redirection flags)
-                    //process.OutputDataReceived += OnProcessOutputDataReceived;
-                    //process.ErrorDataReceived += OnProcessErrorDataReceived;
                     process.Exited += OnProcessExited;
-
-                    //process.BeginErrorReadLine();
-                    //process.BeginOutputReadLine();
                 }
 
                 _isRestartInProgress = false;
             }
             else
             {
-                Exited?.Invoke(this, new ExitedEventArgs(_process.ExitCode));
+                Exited?.Invoke(this, new ExitedEventArgs(_process?.ExitCode ?? 0));
             }
         }
 

@@ -1,1 +1,0 @@
-@"%7\bin\java.exe" -cp %1/ibgateway/%2/jars/*;./commons-cli-1.4.jar;./IBAutomater.jar ibautomater.IBAutomater -ibdir %1 -user %3 -pwd "%4" -mode %5 -port %6

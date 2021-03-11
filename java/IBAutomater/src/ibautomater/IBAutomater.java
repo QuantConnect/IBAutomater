@@ -17,14 +17,18 @@ package ibautomater;
 
 import java.awt.Toolkit;
 import java.awt.Window;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 
 public class IBAutomater {
     private final Settings settings;
+    private PrintWriter printWriter = null;
     private Window mainWindow;
 
     public static void premain(String args) throws Exception {
         String[] argValues = args.split(" ");
-        
+
         String userName = argValues[0];
         String password = argValues[1];
         String tradingMode = argValues[2];
@@ -32,19 +36,35 @@ public class IBAutomater {
 
         IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber);
     }
-   
+
     public IBAutomater(String userName, String password, String tradingMode, int portNumber) {
         this.settings = new Settings(userName, password, tradingMode, portNumber);
-        
+
+        try
+        {
+            this.printWriter = new PrintWriter(new FileWriter("IBAutomater.log"), true);
+        }
+        catch (IOException exception)
+        {
+            System.out.println(exception.getMessage());
+        }
+
         Toolkit.getDefaultToolkit().addAWTEventListener(new WindowEventListener(this), 64L);
     }
 
     public void logMessage(String text) {
-        System.out.println(text);
+        try
+        {
+            this.printWriter.println(text);
+        }
+        catch (Exception exception)
+        {
+            System.out.println(exception.getMessage());
+        }
     }
 
     public void logError(String text) {
-        System.out.println("Error: " + text);
+        this.logMessage("Error: " + text);
     }
 
     public void logError(Exception exception) {
