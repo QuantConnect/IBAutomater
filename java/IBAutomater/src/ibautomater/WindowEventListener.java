@@ -29,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JOptionPane;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -98,6 +99,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleApiNotAvailableWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleEnableAutoRestartConfirmationWindow(window, eventId)) {
                 return;
             }
         }
@@ -362,6 +366,18 @@ public class WindowEventListener implements AWTEventListener {
             bypassOrderPrecautions.setSelected(true);
         }
 
+        Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Lock and Exit"}));
+
+        String autoRestartText = "Auto restart";
+        JRadioButton autoRestart = Common.getRadioButton(window, autoRestartText);
+        if (autoRestart == null) {
+            throw new Exception("Auto restart radio button not found");
+        }
+        if (!autoRestart.isSelected()) {
+            this.automater.logMessage("Select radio button: [" + autoRestartText + "]");
+            autoRestart.setSelected(true);
+        }
+
         JButton okButton = Common.getButton(window, "OK");
         if (okButton == null) {
             throw new Exception("OK button not found");
@@ -507,5 +523,40 @@ public class WindowEventListener implements AWTEventListener {
 
         return false;
     }
+
+    private boolean HandleEnableAutoRestartConfirmationWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title.contains("IB Trader Workstation")) {
+            JTextPane textPane = Common.getTextPane(window);
+            String text = "";
+            if (textPane != null) {
+                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+            }
+
+            // log the message to capture future unhandled messages
+            this.automater.logMessage(text);
+
+            if (!text.contains("You have elected to have your trading platform restart automatically"))
+            {
+                return false;
+            }
+
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
 }
 
