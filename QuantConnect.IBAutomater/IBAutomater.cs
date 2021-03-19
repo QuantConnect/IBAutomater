@@ -230,14 +230,12 @@ namespace QuantConnect.IBAutomater
                 if (IsWindows)
                 {
                     fileName = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.exe";
-                    //fileName = "IBAutomater.bat";
                     arguments = string.Empty;
                 }
                 else
                 {
-                    // TODO:
                     fileName = "IBAutomater.sh";
-                    arguments = $"{_ibDirectory} {_ibVersion} {_userName} {EscapePassword(_password)} {_tradingMode} {_portNumber} {jreInstallPath}";
+                    arguments = $"{_ibDirectory} {_ibVersion}";
                 }
 
                 var process = new Process
