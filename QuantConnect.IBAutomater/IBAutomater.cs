@@ -472,9 +472,10 @@ namespace QuantConnect.IBAutomater
                 {
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}"));
 
-                    // TODO: fire Restarted event so the client can reconnect only (without starting IBGateway)
-                    //Restarted?.Invoke(this, new EventArgs());
-                    Exited?.Invoke(this, new ExitedEventArgs(-9999));
+                    // fire Restarted event so the client can reconnect only (without starting IBGateway)
+                    Restarted?.Invoke(this, new EventArgs());
+
+                    process.Exited -= OnProcessExited;
 
                     // replace process
                     _process = process;
