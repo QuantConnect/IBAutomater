@@ -3,10 +3,11 @@
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
     <Copyright>Copyright ©  2019</Copyright>
-    <Version>1.0.51</Version>
+    <Version>2.0.0</Version>
     <Description>QuantConnect IBAutomater</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/QuantConnect/IBAutomater</PackageProjectUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
   <ItemGroup>
     <None Include="IBAutomater.sh" Pack="true">
