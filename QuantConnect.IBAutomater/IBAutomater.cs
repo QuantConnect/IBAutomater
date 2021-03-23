@@ -172,7 +172,7 @@ namespace QuantConnect.IBAutomater
             _tradingMode = tradingMode;
             _portNumber = portNumber;
 
-            _timerLogReader = new Timer(LogReaderTimerCallback, null, TimeSpan.Zero, TimeSpan.Zero);
+            _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
         }
 
         /// <summary>
@@ -222,6 +222,10 @@ namespace QuantConnect.IBAutomater
                 UpdateIbGatewayConfiguration();
 
                 _ibGatewayLogFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
+                if (File.Exists(_ibGatewayLogFileName))
+                {
+                    File.Delete(_ibGatewayLogFileName);
+                }
 
                 _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
@@ -503,6 +507,8 @@ namespace QuantConnect.IBAutomater
                 {
                     return;
                 }
+
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
                 if (IsWindows)
                 {
