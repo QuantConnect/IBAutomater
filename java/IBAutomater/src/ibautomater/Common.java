@@ -112,7 +112,7 @@ public class Common {
     public static JTextField getTextField(Container container, int index) {
         ArrayList<Component> textFields = new ArrayList<>();
         Common.loadComponents(container, JTextField.class, textFields);
-        return (JTextField)textFields.get(index);
+        return textFields.size() > index ? (JTextField)textFields.get(index) : null;
     }
 
     public static JMenuItem getMenuItem(Container container, String menuText, String menuItemText) {
@@ -146,13 +146,13 @@ public class Common {
     public static JTextPane getTextPane(Container container) {
         ArrayList<Component> textPanes = new ArrayList<>();
         Common.loadComponents(container, JTextPane.class, textPanes);
-        return (JTextPane)textPanes.get(0);
+        return textPanes.size() > 0 ? (JTextPane)textPanes.get(0) : null;
     }
 
     public static JTree getTree(Container container) {
         ArrayList<Component> trees = new ArrayList<>();
         Common.loadComponents(container, JTree.class, trees);
-        return (JTree)trees.get(0);
+        return trees.size() > 0 ? (JTree)trees.get(0) : null;
     }
 
     public static boolean selectTreeNode(JTree tree, TreePath path) {
