@@ -284,6 +284,14 @@ namespace QuantConnect.IBAutomater
                     string message;
                     if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                     {
+                        var processName = IsWindows ? "ibgateway" : "java";
+
+                        var p = Process.GetProcessesByName(processName).FirstOrDefault();
+                        OutputDataReceived?.Invoke(this,
+                            p != null
+                                ? new OutputDataReceivedEventArgs($"IBGateway process found - Id:{p.Id} - Name:{p.ProcessName}")
+                                : new OutputDataReceivedEventArgs($"IBGateway process not found: {processName}"));
+
                         message = "IB Automater initialized.";
                     }
                     else
@@ -467,9 +475,13 @@ namespace QuantConnect.IBAutomater
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
 
-                var process = Process.GetProcessesByName("ibgateway").FirstOrDefault();
+                var processName = IsWindows ? "ibgateway" : "java";
+
+                var process = Process.GetProcessesByName(processName).FirstOrDefault();
                 if (process == null)
                 {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+
                     _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
                 }
                 else
@@ -485,6 +497,7 @@ namespace QuantConnect.IBAutomater
                     _process = process;
 
                     process.Exited += OnProcessExited;
+                    process.EnableRaisingEvents = true;
                 }
 
                 _isRestartInProgress = false;
@@ -531,7 +544,6 @@ namespace QuantConnect.IBAutomater
                 {
                     try
                     {
-                        Process.Start("pkill", "xvfb-run");
                         Process.Start("pkill", "java");
                         Process.Start("pkill", "Xvfb");
                     }
