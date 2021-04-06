@@ -16,10 +16,12 @@
 package ibautomater;
 
 import java.awt.AWTEvent;
+import java.awt.Component;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,7 +60,7 @@ public class WindowEventListener implements AWTEventListener {
         Window window = ((WindowEvent)awtEvent).getWindow();
 
         if (this.handledEvents.containsKey(eventId)) {
-            this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "]");
+            this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "] - Window name: [" + window.getName() + "]");
         }
         else {
             return;
@@ -129,6 +131,8 @@ public class WindowEventListener implements AWTEventListener {
         String buttonIbApiText = "IB API";
         JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
         if (ibApiButton == null) {
+            this.automater.logMessage("Unexpected window found");
+            LogWindowContents(window);
             throw new Exception("IB API toggle button not found");
         }
         if (!ibApiButton.isSelected()) {
@@ -558,5 +562,14 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
+    private void LogWindowContents(Window window) {
+        List<Component> components = Common.getComponents(window);
+
+        this.automater.logMessage("DEBUG: Window title: [" + Common.getTitle(window) + "] - Window name: [" + window.getName() + "]");
+
+        components.forEach((component) -> {
+            this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]");
+        });
+    }
 }
 

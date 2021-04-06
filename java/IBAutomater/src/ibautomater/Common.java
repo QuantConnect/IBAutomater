@@ -185,5 +185,28 @@ public class Common {
             Common.loadComponents((Container)component, type, components);
         }
     }
+
+    public static void loadAllComponents(Container container, List<Component> components) {
+        for (Component component : container.getComponents()) {
+            if (component instanceof Container) {
+                Common.loadAllComponents((Container)component, components);
+            }
+            components.add(component);
+        }
+    }
+
+    public static List<Component> getComponents(Container container) {
+        List<Component> components = new ArrayList<>();
+
+        for (Component component : container.getComponents()) {
+            if (component instanceof Container) {
+                Common.loadAllComponents((Container)component, components);
+            }
+            components.add(component);
+        }
+
+        return components;
+    }
+
 }
 
