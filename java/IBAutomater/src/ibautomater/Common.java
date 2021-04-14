@@ -39,11 +39,19 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
 public class Common {
+    public static boolean isFrame(Window window) {
+        return window instanceof Frame;
+    }
+
+    public static boolean isDialog(Window window) {
+        return window instanceof Dialog;
+    }
+
     public static String getTitle(Window window) {
         String title = "";
-        if (window instanceof Frame) {
+        if (isFrame(window)) {
             title = ((Frame)window).getTitle();
-        } else if (window instanceof Dialog) {
+        } else if (isDialog(window)) {
             title = ((Dialog)window).getTitle();
         }
         return title;

@@ -17,6 +17,7 @@ package ibautomater;
 
 import java.awt.AWTEvent;
 import java.awt.Component;
+import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
@@ -30,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
@@ -106,6 +108,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleEnableAutoRestartConfirmationWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleAutoRestartTokenExpiredWindow(window, eventId)) {
+                return;
+            }
         }
         catch (Exception e) {
             this.automater.logError(e.toString());
@@ -120,6 +125,7 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title == null ||
+            !Common.isFrame(window) ||
             (!title.equals("IB Gateway") &&
              // v981
              !title.equals("Interactive Brokers Gateway"))) {
@@ -560,6 +566,57 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         return false;
+    }
+
+    private boolean HandleAutoRestartTokenExpiredWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        if (Common.getLabel(window, "Soft token=0 received instead of expected permanent") == null) {
+            return false;
+        }
+
+        String buttonText = "OK";
+        JButton button = Common.getButton(window, buttonText);
+
+        if (button != null) {
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            button.doClick();
+        }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
+        this.automater.logMessage("Auto-restart token expired, closing IBGateway");
+
+        CloseMainWindow();
+
+        return true;
+    }
+
+    private void CloseMainWindow()
+    {
+        new Thread(()-> {
+            this.automater.logMessage("CloseMainWindow thread started");
+
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            executor.execute(() -> {
+                this.automater.logMessage("Closing login window");
+                ((JFrame)this.automater.getMainWindow()).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                WindowEvent closingEvent = new WindowEvent(this.automater.getMainWindow(), WindowEvent.WINDOW_CLOSING);
+                Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(closingEvent);
+            });
+
+            try {
+                executor.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                this.automater.logMessage("Timeout in CloseMainWindow: " + ex.getMessage());
+            }
+
+            this.automater.logMessage("CloseMainWindow thread ended");
+        }).start();
     }
 
     private void LogWindowContents(Window window) {
