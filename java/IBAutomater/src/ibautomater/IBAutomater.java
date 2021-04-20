@@ -21,7 +21,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 
-public class IBAutomater {
+public final class IBAutomater {
     private final Settings settings;
     private PrintWriter printWriter = null;
     private Window mainWindow;
@@ -50,6 +50,8 @@ public class IBAutomater {
         }
 
         Toolkit.getDefaultToolkit().addAWTEventListener(new WindowEventListener(this), 64L);
+
+        this.logMessage("IBGateway started");
     }
 
     public void logMessage(String text) {

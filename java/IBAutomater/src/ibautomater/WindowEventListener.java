@@ -132,6 +132,9 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
+        this.automater.setMainWindow(window);
+        this.automater.logMessage("Main window - Window title: [" + title + "] - Window name: [" + window.getName() + "]");
+
         boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
 
         String buttonIbApiText = "IB API";
@@ -603,19 +606,29 @@ public class WindowEventListener implements AWTEventListener {
             ExecutorService executor = Executors.newSingleThreadExecutor();
 
             executor.execute(() -> {
-                this.automater.logMessage("Closing login window");
-                ((JFrame)this.automater.getMainWindow()).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-                WindowEvent closingEvent = new WindowEvent(this.automater.getMainWindow(), WindowEvent.WINDOW_CLOSING);
-                Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(closingEvent);
+                try {
+                    Window mainWindow = this.automater.getMainWindow();
+                    this.automater.logMessage("Closing main window - Window title: [" + Common.getTitle(mainWindow) + "] - Window name: [" + mainWindow.getName() + "]");
+                    ((JFrame) this.automater.getMainWindow()).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                    WindowEvent closingEvent = new WindowEvent(this.automater.getMainWindow(), WindowEvent.WINDOW_CLOSING);
+                    Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(closingEvent);
+                    this.automater.logMessage("Close main window message sent");
+                } catch (Exception e) {
+                    this.automater.logMessage("CloseMainWindow execute error: " + e.getMessage());
+                }
             });
 
             try {
-                executor.awaitTermination(5, TimeUnit.SECONDS);
-            } catch (InterruptedException ex) {
-                this.automater.logMessage("Timeout in CloseMainWindow: " + ex.getMessage());
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS))
+                {
+                    this.automater.logMessage("Timeout in execution of CloseMainWindow");
+                }
+            } catch (InterruptedException e) {
+                this.automater.logMessage("CloseMainWindow await error: " + e.getMessage());
             }
 
             this.automater.logMessage("CloseMainWindow thread ended");
+
         }).start();
     }
 

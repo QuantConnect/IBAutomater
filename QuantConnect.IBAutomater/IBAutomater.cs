@@ -451,9 +451,17 @@ namespace QuantConnect.IBAutomater
                     _ibAutomaterInitializeEvent.Set();
                 }
 
+                // daily restart with no authentication required
                 else if (text.Contains("Restart in progress"))
                 {
                     _isRestartInProgress = true;
+                }
+
+                // weekly restart with full authentication
+                else if (text.Contains("Shutdown in progress"))
+                {
+                    _isRestartInProgress = false;
+                    _ibAutomaterInitializeEvent.Set();
                 }
             }
         }
@@ -462,8 +470,6 @@ namespace QuantConnect.IBAutomater
         {
             if (_isRestartInProgress)
             {
-                // find new IBGateway process (created by auto-restart)
-
                 _ibAutomaterInitializeEvent.Reset();
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
@@ -473,34 +479,43 @@ namespace QuantConnect.IBAutomater
                     return;
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
-
-                var processName = IsWindows ? "ibgateway" : "java";
-
-                var process = Process.GetProcessesByName(processName).FirstOrDefault();
-                if (process == null)
+                if (_isRestartInProgress)
                 {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
 
-                    _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
+                    // find new IBGateway process (created by auto-restart)
+
+                    var processName = IsWindows ? "ibgateway" : "java";
+
+                    var process = Process.GetProcessesByName(processName).FirstOrDefault();
+                    if (process == null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+
+                        _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
+                    }
+                    else
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}"));
+
+                        // fire Restarted event so the client can reconnect only (without starting IBGateway)
+                        Restarted?.Invoke(this, new EventArgs());
+
+                        process.Exited -= OnProcessExited;
+
+                        // replace process
+                        _process = process;
+
+                        process.Exited += OnProcessExited;
+                        process.EnableRaisingEvents = true;
+                    }
+
+                    _isRestartInProgress = false;
                 }
                 else
                 {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}"));
-
-                    // fire Restarted event so the client can reconnect only (without starting IBGateway)
-                    Restarted?.Invoke(this, new EventArgs());
-
-                    process.Exited -= OnProcessExited;
-
-                    // replace process
-                    _process = process;
-
-                    process.Exited += OnProcessExited;
-                    process.EnableRaisingEvents = true;
+                    Exited?.Invoke(this, new ExitedEventArgs(_process?.ExitCode ?? 0));
                 }
-
-                _isRestartInProgress = false;
             }
             else
             {
