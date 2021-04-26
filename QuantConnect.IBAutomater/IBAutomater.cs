@@ -458,7 +458,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // weekly restart with full authentication
-                else if (text.Contains("Shutdown in progress"))
+                else if (text.Contains("Auto-restart token expired"))
                 {
                     _isRestartInProgress = false;
                     _ibAutomaterInitializeEvent.Set();
@@ -468,6 +468,8 @@ namespace QuantConnect.IBAutomater
 
         private void OnProcessExited(object sender, EventArgs e)
         {
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IBGateway process exited"));
+
             if (_isRestartInProgress)
             {
                 _ibAutomaterInitializeEvent.Reset();
