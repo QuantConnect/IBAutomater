@@ -516,12 +516,12 @@ namespace QuantConnect.IBAutomater
                 }
                 else
                 {
-                    Exited?.Invoke(this, new ExitedEventArgs(_process?.ExitCode ?? 0));
+                    Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
                 }
             }
             else
             {
-                Exited?.Invoke(this, new ExitedEventArgs(_process?.ExitCode ?? 0));
+                Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
             }
         }
 
@@ -871,6 +871,18 @@ namespace QuantConnect.IBAutomater
             }
 
             File.WriteAllLines(ibGatewayConfigFile, lines);
+        }
+
+        private static int GetProcessExitCode(Process process)
+        {
+            // The IBGateway auto-restarted process is a non-child process
+            // System.InvalidOperationException: Cannot get the exit code from a non-child process on Unix
+            if (process == null || IsLinux)
+            {
+                return 0;
+            }
+
+            return process.ExitCode;
         }
     }
 }
