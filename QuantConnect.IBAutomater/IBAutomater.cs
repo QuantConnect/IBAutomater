@@ -80,6 +80,7 @@ namespace QuantConnect.IBAutomater
         private string _ibGatewayLogFileName;
         private int _logLinesRead;
         private readonly Timer _timerLogReader;
+        private readonly object _logLocker = new object();
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -221,10 +222,16 @@ namespace QuantConnect.IBAutomater
 
                 UpdateIbGatewayConfiguration();
 
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
+
                 _ibGatewayLogFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
-                if (File.Exists(_ibGatewayLogFileName))
+
+                lock (_logLocker)
                 {
-                    File.Delete(_ibGatewayLogFileName);
+                    if (File.Exists(_ibGatewayLogFileName))
+                    {
+                        File.Delete(_ibGatewayLogFileName);
+                    }
                 }
 
                 _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
@@ -337,40 +344,43 @@ namespace QuantConnect.IBAutomater
 
         private void LogReaderTimerCallback(object _)
         {
-            if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
+            lock (_logLocker)
             {
-                return;
-            }
-
-            using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            {
-                fileStream.Seek(0, SeekOrigin.Begin);
-
-                using (var reader = new StreamReader(fileStream))
+                if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
                 {
-                    var lines = new List<string>();
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        lines.Add(line);
-                    }
+                    return;
+                }
 
-                    var totalLines = lines.Count;
-                    if (totalLines < _logLinesRead)
-                    {
-                        // log file was rewritten by a restart of IBGateway
-                        _logLinesRead = 0;
-                    }
+                using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    fileStream.Seek(0, SeekOrigin.Begin);
 
-                    var newLinesCount = totalLines - _logLinesRead;
-                    var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
-                    _logLinesRead = totalLines;
-
-                    if (newLinesCount > 0)
+                    using (var reader = new StreamReader(fileStream))
                     {
-                        foreach (var newLine in newLines)
+                        var lines = new List<string>();
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
                         {
-                            OnProcessOutputDataReceived(newLine);
+                            lines.Add(line);
+                        }
+
+                        var totalLines = lines.Count;
+                        if (totalLines < _logLinesRead)
+                        {
+                            // log file was rewritten by a restart of IBGateway
+                            _logLinesRead = 0;
+                        }
+
+                        var newLinesCount = totalLines - _logLinesRead;
+                        var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
+                        _logLinesRead = totalLines;
+
+                        if (newLinesCount > 0)
+                        {
+                            foreach (var newLine in newLines)
+                            {
+                                OnProcessOutputDataReceived(newLine);
+                            }
                         }
                     }
                 }
