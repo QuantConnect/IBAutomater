@@ -344,46 +344,54 @@ namespace QuantConnect.IBAutomater
 
         private void LogReaderTimerCallback(object _)
         {
-            lock (_logLocker)
+            try
             {
-                if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
+                lock (_logLocker)
                 {
-                    return;
-                }
-
-                using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    fileStream.Seek(0, SeekOrigin.Begin);
-
-                    using (var reader = new StreamReader(fileStream))
+                    if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
                     {
-                        var lines = new List<string>();
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            lines.Add(line);
-                        }
+                        return;
+                    }
 
-                        var totalLines = lines.Count;
-                        if (totalLines < _logLinesRead)
-                        {
-                            // log file was rewritten by a restart of IBGateway
-                            _logLinesRead = 0;
-                        }
+                    using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        fileStream.Seek(0, SeekOrigin.Begin);
 
-                        var newLinesCount = totalLines - _logLinesRead;
-                        var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
-                        _logLinesRead = totalLines;
-
-                        if (newLinesCount > 0)
+                        using (var reader = new StreamReader(fileStream))
                         {
-                            foreach (var newLine in newLines)
+                            var lines = new List<string>();
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
                             {
-                                OnProcessOutputDataReceived(newLine);
+                                lines.Add(line);
+                            }
+
+                            var totalLines = lines.Count;
+                            if (totalLines < _logLinesRead)
+                            {
+                                // log file was rewritten by a restart of IBGateway
+                                _logLinesRead = 0;
+                            }
+
+                            var newLinesCount = totalLines - _logLinesRead;
+                            var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
+                            _logLinesRead = totalLines;
+
+                            if (newLinesCount > 0)
+                            {
+                                foreach (var newLine in newLines)
+                                {
+                                    OnProcessOutputDataReceived(newLine);
+                                }
                             }
                         }
                     }
                 }
+            }
+            catch (Exception exception)
+            {
+                var message = $"IBAutomater error in timer - Message: {exception.Message}";
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
             }
         }
 
