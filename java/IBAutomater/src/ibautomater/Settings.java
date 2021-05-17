@@ -18,12 +18,10 @@ package ibautomater;
 public class Settings {
     private final String userName;
     private final String password;
-    private final String ibDirectory;
     private final String tradingMode;
     private final int portNumber;
 
-    public Settings(String ibDirectory, String userName, String password, String tradingMode, int portNumber) {
-        this.ibDirectory = ibDirectory;
+    public Settings(String userName, String password, String tradingMode, int portNumber) {
         this.userName = userName;
         this.password = password;
         this.tradingMode = tradingMode;
@@ -36,10 +34,6 @@ public class Settings {
 
     public String getPassword() {
         return this.password;
-    }
-
-    public String getIbDirectory() {
-        return this.ibDirectory;
     }
 
     public String getTradingMode() {

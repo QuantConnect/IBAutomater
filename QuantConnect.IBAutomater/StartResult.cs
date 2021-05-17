@@ -80,7 +80,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// API support is not available for accounts that support free trading
         /// </summary>
-        ApiSupportNotAvailable
+        ApiSupportNotAvailable,
+
+        /// <summary>
+        /// The IBGateway restarted process was not found
+        /// </summary>
+        RestartedProcessNotFound
     }
 
     /// <summary>
@@ -138,6 +143,10 @@ namespace QuantConnect.IBAutomater
                     ErrorCode.ApiSupportNotAvailable,
                     "API support is not available for accounts that support free trading. " +
                     "Please upgrade your plan from IBKR Lite to IBKR Pro."
+                },
+                {
+                    ErrorCode.RestartedProcessNotFound,
+                    "The IBGateway restarted process was not found."
                 }
             };
 

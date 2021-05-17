@@ -17,6 +17,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using Newtonsoft.Json.Linq;
 using NodaTime;
@@ -29,7 +31,7 @@ namespace QuantConnect.IBAutomater
     /// </summary>
     public class IBAutomater
     {
-        private static TimeSpan _initializationTimeout = TimeSpan.FromSeconds(180);
+        private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(10);
 
         private readonly string _ibDirectory;
         private readonly string _ibVersion;
@@ -43,6 +45,7 @@ namespace QuantConnect.IBAutomater
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
         private bool _twoFactorConfirmationPending;
+        private bool _isRestartInProgress;
 
         private enum Region { America, Europe, Asia }
 
@@ -74,6 +77,11 @@ namespace QuantConnect.IBAutomater
         // used to limit logging
         private bool _isWithinScheduledServerResetTimesLastValue;
 
+        private string _ibGatewayLogFileName;
+        private int _logLinesRead;
+        private readonly Timer _timerLogReader;
+        private readonly object _logLocker = new object();
+
         /// <summary>
         /// Event fired when the process writes to the output stream
         /// </summary>
@@ -88,6 +96,11 @@ namespace QuantConnect.IBAutomater
         /// Event fired when the process exits
         /// </summary>
         public event EventHandler<ExitedEventArgs> Exited;
+
+        /// <summary>
+        /// Event fired when the process exits
+        /// </summary>
+        public event EventHandler Restarted;
 
         /// <summary>
         /// Main program for testing and/or standalone execution
@@ -159,6 +172,8 @@ namespace QuantConnect.IBAutomater
             _password = password;
             _tradingMode = tradingMode;
             _portNumber = portNumber;
+
+            _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
         }
 
         /// <summary>
@@ -205,15 +220,39 @@ namespace QuantConnect.IBAutomater
                     return new StartResult(ErrorCode.JavaNotFound);
                 }
 
-                var fileName = IsWindows ? "IBAutomater.bat" : "IBAutomater.sh";
-                var arguments = $"{_ibDirectory} {_ibVersion} {_userName} {EscapePassword(_password)} {_tradingMode} {_portNumber} {jreInstallPath}";
+                UpdateIbGatewayConfiguration();
+
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
+
+                _ibGatewayLogFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
+
+                lock (_logLocker)
+                {
+                    if (File.Exists(_ibGatewayLogFileName))
+                    {
+                        File.Delete(_ibGatewayLogFileName);
+                    }
+                }
+
+                _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+                string fileName;
+                string arguments;
+                if (IsWindows)
+                {
+                    fileName = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.exe";
+                    arguments = string.Empty;
+                }
+                else
+                {
+                    fileName = "IBAutomater.sh";
+                    arguments = $"{_ibDirectory} {_ibVersion}";
+                }
 
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo(fileName, arguments)
                     {
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                         CreateNoWindow = true
@@ -221,102 +260,7 @@ namespace QuantConnect.IBAutomater
                     EnableRaisingEvents = true
                 };
 
-                process.OutputDataReceived += (sender, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
-
-                        // login failed
-                        if (e.Data.Contains("Login failed"))
-                        {
-                            if (!IsWithinScheduledServerResetTimes())
-                            {
-                                _lastStartResult = new StartResult(ErrorCode.LoginFailed);
-                            }
-
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // an existing session was detected
-                        else if (e.Data.Contains("Existing session detected"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // a security dialog (2FA) was detected by IBAutomater
-                        else if (e.Data.Contains("Second Factor Authentication"))
-                        {
-                            if (e.Data.Contains("[WINDOW_OPENED]"))
-                            {
-                                // waiting for 2FA confirmation on IBKR mobile app
-                                const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
-                                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
-
-                                _twoFactorConfirmationPending = true;
-                            }
-                        }
-
-                        // a security dialog (code card) was detected by IBAutomater
-                        else if (e.Data.Contains("Security Code Card Authentication") ||
-                                 e.Data.Contains("Enter security code"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // the IBGateway version is no longer supported
-                        else if (e.Data.Contains("is no longer supported"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.UnsupportedVersion);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // a Java exception was thrown
-                        if (e.Data.StartsWith("Exception"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // API support is not available for accounts that support free trading
-                        else if (e.Data.Contains("API support is not available"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.ApiSupportNotAvailable);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-
-                        // initialization completed
-                        else if (e.Data.Contains("Configuration settings updated"))
-                        {
-                            // load server name and region
-                            LoadIbServerInformation();
-
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-                    }
-                };
-
-                process.ErrorDataReceived += (sender, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
-
-                        // a Java exception was thrown
-                        if (e.Data.StartsWith("Exception"))
-                        {
-                            _lastStartResult = new StartResult(ErrorCode.JavaException, e.Data);
-                            _ibAutomaterInitializeEvent.Set();
-                        }
-                    }
-                };
-
-                process.Exited += (sender, e) =>
-                {
-                    Exited?.Invoke(this, new ExitedEventArgs(process.ExitCode));
-                };
+                process.Exited += OnProcessExited;
 
                 try
                 {
@@ -333,12 +277,9 @@ namespace QuantConnect.IBAutomater
                         exception.Message.Replace(_password, "***"));
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - InitializationTimeout:{_initializationTimeout}"));
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - Name:{process.ProcessName} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
-
-                process.BeginErrorReadLine();
-                process.BeginOutputReadLine();
 
                 if (waitForExit)
                 {
@@ -350,6 +291,14 @@ namespace QuantConnect.IBAutomater
                     string message;
                     if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                     {
+                        var processName = IsWindows ? "ibgateway" : "java";
+
+                        var p = Process.GetProcessesByName(processName).FirstOrDefault();
+                        OutputDataReceived?.Invoke(this,
+                            p != null
+                                ? new OutputDataReceivedEventArgs($"IBGateway process found - Id:{p.Id} - Name:{p.ProcessName}")
+                                : new OutputDataReceivedEventArgs($"IBGateway process not found: {processName}"));
+
                         message = "IB Automater initialized.";
                     }
                     else
@@ -393,6 +342,207 @@ namespace QuantConnect.IBAutomater
             return StartResult.Success;
         }
 
+        private void LogReaderTimerCallback(object _)
+        {
+            try
+            {
+                lock (_logLocker)
+                {
+                    if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
+                    {
+                        return;
+                    }
+
+                    using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        fileStream.Seek(0, SeekOrigin.Begin);
+
+                        using (var reader = new StreamReader(fileStream))
+                        {
+                            var lines = new List<string>();
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                lines.Add(line);
+                            }
+
+                            var totalLines = lines.Count;
+                            if (totalLines < _logLinesRead)
+                            {
+                                // log file was rewritten by a restart of IBGateway
+                                _logLinesRead = 0;
+                            }
+
+                            var newLinesCount = totalLines - _logLinesRead;
+                            var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
+                            _logLinesRead = totalLines;
+
+                            if (newLinesCount > 0)
+                            {
+                                foreach (var newLine in newLines)
+                                {
+                                    OnProcessOutputDataReceived(newLine);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                var message = $"IBAutomater error in timer - Message: {exception.Message}";
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+            }
+        }
+
+        private void OnProcessOutputDataReceived(string text)
+        {
+            if (text != null)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(text));
+
+                // login failed
+                if (text.Contains("Login failed"))
+                {
+                    if (!IsWithinScheduledServerResetTimes())
+                    {
+                        _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                    }
+
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // an existing session was detected
+                else if (text.Contains("Existing session detected"))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // a security dialog (2FA) was detected by IBAutomater
+                else if (text.Contains("Second Factor Authentication"))
+                {
+                    if (text.Contains("[WINDOW_OPENED]"))
+                    {
+                        // waiting for 2FA confirmation on IBKR mobile app
+                        const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                        _twoFactorConfirmationPending = true;
+                    }
+                }
+
+                // a security dialog (code card) was detected by IBAutomater
+                else if (text.Contains("Security Code Card Authentication") || text.Contains("Enter security code"))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // the IBGateway version is no longer supported
+                else if (text.Contains("is no longer supported"))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.UnsupportedVersion);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // a Java exception was thrown
+                if (text.StartsWith("Exception"))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.JavaException, text);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // API support is not available for accounts that support free trading
+                else if (text.Contains("API support is not available"))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.ApiSupportNotAvailable);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // initialization completed
+                else if (text.Contains("Configuration settings updated"))
+                {
+                    // load server name and region
+                    LoadIbServerInformation();
+
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
+                // daily restart with no authentication required
+                else if (text.Contains("Restart in progress"))
+                {
+                    _isRestartInProgress = true;
+                }
+
+                // weekly restart with full authentication
+                else if (text.Contains("Auto-restart token expired"))
+                {
+                    _isRestartInProgress = false;
+                    _ibAutomaterInitializeEvent.Set();
+                }
+            }
+        }
+
+        private void OnProcessExited(object sender, EventArgs e)
+        {
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IBGateway process exited"));
+
+            if (_isRestartInProgress)
+            {
+                _ibAutomaterInitializeEvent.Reset();
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
+                if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
+                {
+                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                    return;
+                }
+
+                if (_isRestartInProgress)
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
+
+                    // find new IBGateway process (created by auto-restart)
+
+                    var processName = IsWindows ? "ibgateway" : "java";
+
+                    var process = Process.GetProcessesByName(processName).FirstOrDefault();
+                    if (process == null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+
+                        _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
+                    }
+                    else
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}"));
+
+                        // fire Restarted event so the client can reconnect only (without starting IBGateway)
+                        Restarted?.Invoke(this, new EventArgs());
+
+                        process.Exited -= OnProcessExited;
+
+                        // replace process
+                        _process = process;
+
+                        process.Exited += OnProcessExited;
+                        process.EnableRaisingEvents = true;
+                    }
+
+                    _isRestartInProgress = false;
+                }
+                else
+                {
+                    Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
+                }
+            }
+            else
+            {
+                Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
+            }
+        }
+
         /// <summary>
         /// Stops the IB Gateway
         /// </summary>
@@ -405,6 +555,8 @@ namespace QuantConnect.IBAutomater
                 {
                     return;
                 }
+
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
                 if (IsWindows)
                 {
@@ -427,7 +579,6 @@ namespace QuantConnect.IBAutomater
                 {
                     try
                     {
-                        Process.Start("pkill", "xvfb-run");
                         Process.Start("pkill", "java");
                         Process.Start("pkill", "Xvfb");
                     }
@@ -708,6 +859,48 @@ namespace QuantConnect.IBAutomater
             return IsWindows
                 ? password.Replace("&", "^&").Replace("|", "^|")
                 : password;
+        }
+
+        private void UpdateIbGatewayConfiguration()
+        {
+            // update IBGateway configuration file with Java agent entry
+            var ibGatewayConfigFile = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.vmoptions";
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
+
+            var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={_userName} {_password} {_tradingMode} {_portNumber}";
+
+            var lines = File.ReadAllLines(ibGatewayConfigFile).ToList();
+            var existing = false;
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+
+                if (line.StartsWith("-javaagent:") && line.Contains("IBAutomater"))
+                {
+                    lines[i] = javaAgentConfig;
+                    existing = true;
+                }
+            }
+
+            if (!existing)
+            {
+                lines.Add(javaAgentConfig);
+            }
+
+            File.WriteAllLines(ibGatewayConfigFile, lines);
+        }
+
+        private static int GetProcessExitCode(Process process)
+        {
+            // The IBGateway auto-restarted process is a non-child process
+            // System.InvalidOperationException: Cannot get the exit code from a non-child process on Unix
+            if (process == null || IsLinux)
+            {
+                return 0;
+            }
+
+            return process.ExitCode;
         }
     }
 }

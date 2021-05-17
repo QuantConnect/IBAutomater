@@ -39,11 +39,19 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
 public class Common {
+    public static boolean isFrame(Window window) {
+        return window instanceof Frame;
+    }
+
+    public static boolean isDialog(Window window) {
+        return window instanceof Dialog;
+    }
+
     public static String getTitle(Window window) {
         String title = "";
-        if (window instanceof Frame) {
+        if (isFrame(window)) {
             title = ((Frame)window).getTitle();
-        } else if (window instanceof Dialog) {
+        } else if (isDialog(window)) {
             title = ((Dialog)window).getTitle();
         }
         return title;
@@ -112,7 +120,7 @@ public class Common {
     public static JTextField getTextField(Container container, int index) {
         ArrayList<Component> textFields = new ArrayList<>();
         Common.loadComponents(container, JTextField.class, textFields);
-        return (JTextField)textFields.get(index);
+        return textFields.size() > index ? (JTextField)textFields.get(index) : null;
     }
 
     public static JMenuItem getMenuItem(Container container, String menuText, String menuItemText) {
@@ -146,13 +154,13 @@ public class Common {
     public static JTextPane getTextPane(Container container) {
         ArrayList<Component> textPanes = new ArrayList<>();
         Common.loadComponents(container, JTextPane.class, textPanes);
-        return (JTextPane)textPanes.get(0);
+        return textPanes.size() > 0 ? (JTextPane)textPanes.get(0) : null;
     }
 
     public static JTree getTree(Container container) {
         ArrayList<Component> trees = new ArrayList<>();
         Common.loadComponents(container, JTree.class, trees);
-        return (JTree)trees.get(0);
+        return trees.size() > 0 ? (JTree)trees.get(0) : null;
     }
 
     public static boolean selectTreeNode(JTree tree, TreePath path) {
@@ -185,5 +193,28 @@ public class Common {
             Common.loadComponents((Container)component, type, components);
         }
     }
+
+    public static void loadAllComponents(Container container, List<Component> components) {
+        for (Component component : container.getComponents()) {
+            if (component instanceof Container) {
+                Common.loadAllComponents((Container)component, components);
+            }
+            components.add(component);
+        }
+    }
+
+    public static List<Component> getComponents(Container container) {
+        List<Component> components = new ArrayList<>();
+
+        for (Component component : container.getComponents()) {
+            if (component instanceof Container) {
+                Common.loadAllComponents((Container)component, components);
+            }
+            components.add(component);
+        }
+
+        return components;
+    }
+
 }
 

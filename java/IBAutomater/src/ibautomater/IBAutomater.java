@@ -15,73 +15,58 @@
 
 package ibautomater;
 
-import ibgateway.GWClient;
 import java.awt.Toolkit;
 import java.awt.Window;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 
-public class IBAutomater {
+public final class IBAutomater {
     private final Settings settings;
+    private PrintWriter printWriter = null;
     private Window mainWindow;
 
-    public static void main(String[] args) throws Exception {
-        Options options = new Options();
-        options.addOption(new Option("ibdir", true, "IB Gateway path"));
-        options.addOption(new Option("user", true, "User name"));
-        options.addOption(new Option("pwd", true, "Password"));
-        options.addOption(new Option("mode", true, "Trading mode"));
-        options.addOption(new Option("port", true, "IB socket port"));
+    public static void premain(String args) throws Exception {
+        String[] argValues = args.split(" ");
 
-        DefaultParser parser = new DefaultParser();
-        CommandLine commandLine = parser.parse(options, args);
+        String userName = argValues[0];
+        String password = argValues[1];
+        String tradingMode = argValues[2];
+        int portNumber = Integer.parseInt(argValues[3]);
 
-        if (!(commandLine.hasOption("ibdir") && commandLine.hasOption("user") && commandLine.hasOption("pwd") && commandLine.hasOption("mode") && commandLine.hasOption("port"))) {
-            HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp("IBAutomater", options);
-            System.exit(1);
+        IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber);
+    }
+
+    public IBAutomater(String userName, String password, String tradingMode, int portNumber) {
+        this.settings = new Settings(userName, password, tradingMode, portNumber);
+
+        try
+        {
+            this.printWriter = new PrintWriter(new FileWriter("IBAutomater.log"), true);
         }
-
-        String ibDirectory = commandLine.getOptionValue("ibdir");
-        String userName = commandLine.getOptionValue("user");
-        String password = commandLine.getOptionValue("pwd");
-        String tradingMode = commandLine.getOptionValue("mode");
-        int portNumber = Integer.parseInt(commandLine.getOptionValue("port"));
-
-        IBAutomater automater = new IBAutomater(ibDirectory, userName, password, tradingMode, portNumber);
-        automater.startIBGateway();
-    }
-
-    public IBAutomater(String ibDirectory, String userName, String password, String tradingMode, int portNumber) {
-        this.settings = new Settings(ibDirectory, userName, password, tradingMode, portNumber);
-    }
-
-    public void startIBGateway() {
-        this.logMessage("StartIBGateway(): starting IBGateway");
+        catch (IOException exception)
+        {
+            System.out.println(exception.getMessage());
+        }
 
         Toolkit.getDefaultToolkit().addAWTEventListener(new WindowEventListener(this), 64L);
 
-        String[] args = new String[] { this.settings.getIbDirectory() };
-        try {
-            GWClient.main(args);
-        }
-        catch (Exception exception) {
-            this.logError("StartIBGateway(): Error launching IBGateway: " + exception.toString());
-            System.exit(1);
-            return;
-        }
-        this.logMessage("StartIBGateway(): IBGateway started");
+        this.logMessage("IBGateway started");
     }
 
     public void logMessage(String text) {
-        System.out.println(text);
+        try
+        {
+            this.printWriter.println(text);
+        }
+        catch (Exception exception)
+        {
+            System.out.println(exception.getMessage());
+        }
     }
 
     public void logError(String text) {
-        System.out.println("Error: " + text);
+        this.logMessage("Error: " + text);
     }
 
     public void logError(Exception exception) {

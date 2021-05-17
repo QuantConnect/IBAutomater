@@ -16,10 +16,13 @@
 package ibautomater;
 
 import java.awt.AWTEvent;
+import java.awt.Component;
+import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -28,7 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -57,7 +62,7 @@ public class WindowEventListener implements AWTEventListener {
         Window window = ((WindowEvent)awtEvent).getWindow();
 
         if (this.handledEvents.containsKey(eventId)) {
-            this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "]");
+            this.automater.logMessage("Window event: [" + this.handledEvents.get(eventId) + "] - Window title: [" + Common.getTitle(window) + "] - Window name: [" + window.getName() + "]");
         }
         else {
             return;
@@ -100,6 +105,12 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleApiNotAvailableWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleEnableAutoRestartConfirmationWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleAutoRestartTokenExpiredWindow(window, eventId)) {
+                return;
+            }
         }
         catch (Exception e) {
             this.automater.logError(e.toString());
@@ -114,17 +125,23 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title == null ||
+            !Common.isFrame(window) ||
             (!title.equals("IB Gateway") &&
              // v981
              !title.equals("Interactive Brokers Gateway"))) {
             return false;
         }
 
+        this.automater.setMainWindow(window);
+        this.automater.logMessage("Main window - Window title: [" + title + "] - Window name: [" + window.getName() + "]");
+
         boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
 
         String buttonIbApiText = "IB API";
         JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
         if (ibApiButton == null) {
+            this.automater.logMessage("Unexpected window found");
+            LogWindowContents(window);
             throw new Exception("IB API toggle button not found");
         }
         if (!ibApiButton.isSelected()) {
@@ -362,6 +379,18 @@ public class WindowEventListener implements AWTEventListener {
             bypassOrderPrecautions.setSelected(true);
         }
 
+        Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Lock and Exit"}));
+
+        String autoRestartText = "Auto restart";
+        JRadioButton autoRestart = Common.getRadioButton(window, autoRestartText);
+        if (autoRestart == null) {
+            throw new Exception("Auto restart radio button not found");
+        }
+        if (!autoRestart.isSelected()) {
+            this.automater.logMessage("Select radio button: [" + autoRestartText + "]");
+            autoRestart.setSelected(true);
+        }
+
         JButton okButton = Common.getButton(window, "OK");
         if (okButton == null) {
             throw new Exception("OK button not found");
@@ -506,6 +535,111 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         return false;
+    }
+
+    private boolean HandleEnableAutoRestartConfirmationWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title.contains("IB Trader Workstation")) {
+            JTextPane textPane = Common.getTextPane(window);
+            String text = "";
+            if (textPane != null) {
+                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+            }
+
+            // log the message to capture future unhandled messages
+            this.automater.logMessage(text);
+
+            if (!text.contains("You have elected to have your trading platform restart automatically"))
+            {
+                return false;
+            }
+
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleAutoRestartTokenExpiredWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        if (Common.getLabel(window, "Soft token=0 received instead of expected permanent") == null) {
+            return false;
+        }
+
+        String buttonText = "OK";
+        JButton button = Common.getButton(window, buttonText);
+
+        if (button != null) {
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            button.doClick();
+        }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
+        this.automater.logMessage("Auto-restart token expired, closing IBGateway");
+
+        CloseMainWindow();
+
+        return true;
+    }
+
+    private void CloseMainWindow()
+    {
+        new Thread(()-> {
+            this.automater.logMessage("CloseMainWindow thread started");
+
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+
+            executor.execute(() -> {
+                try {
+                    Window mainWindow = this.automater.getMainWindow();
+                    this.automater.logMessage("Closing main window - Window title: [" + Common.getTitle(mainWindow) + "] - Window name: [" + mainWindow.getName() + "]");
+                    ((JFrame) this.automater.getMainWindow()).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                    WindowEvent closingEvent = new WindowEvent(this.automater.getMainWindow(), WindowEvent.WINDOW_CLOSING);
+                    Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(closingEvent);
+                    this.automater.logMessage("Close main window message sent");
+                } catch (Exception e) {
+                    this.automater.logMessage("CloseMainWindow execute error: " + e.getMessage());
+                }
+            });
+
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS))
+                {
+                    this.automater.logMessage("Timeout in execution of CloseMainWindow");
+                }
+            } catch (InterruptedException e) {
+                this.automater.logMessage("CloseMainWindow await error: " + e.getMessage());
+            }
+
+            this.automater.logMessage("CloseMainWindow thread ended");
+
+        }).start();
+    }
+
+    private void LogWindowContents(Window window) {
+        List<Component> components = Common.getComponents(window);
+
+        this.automater.logMessage("DEBUG: Window title: [" + Common.getTitle(window) + "] - Window name: [" + window.getName() + "]");
+
+        components.forEach((component) -> {
+            this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]");
+        });
     }
 }
 
