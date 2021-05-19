@@ -542,33 +542,27 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String title = Common.getTitle(window);
-
-        if (title.contains("IB Trader Workstation")) {
-            JTextPane textPane = Common.getTextPane(window);
-            String text = "";
-            if (textPane != null) {
-                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
-            }
+        JTextPane textPane = Common.getTextPane(window);
+        String text = "";
+        if (textPane != null) {
+            text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
 
             // log the message to capture future unhandled messages
             this.automater.logMessage(text);
-
-            if (!text.contains("You have elected to have your trading platform restart automatically"))
-            {
-                return false;
-            }
-
-            JButton button = Common.getButton(window, "OK");
-            if (button != null) {
-                this.automater.logMessage("Click button: [OK]");
-                button.doClick();
-            }
-
-            return true;
         }
 
-        return false;
+        if (!text.contains("You have elected to have your trading platform restart automatically"))
+        {
+            return false;
+        }
+
+        JButton button = Common.getButton(window, "OK");
+        if (button != null) {
+            this.automater.logMessage("Click button: [OK]");
+            button.doClick();
+        }
+
+        return true;
     }
 
     private boolean HandleAutoRestartTokenExpiredWindow(Window window, int eventId) throws Exception {
