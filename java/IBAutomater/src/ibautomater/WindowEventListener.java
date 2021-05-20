@@ -111,6 +111,8 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleAutoRestartTokenExpiredWindow(window, eventId)) {
                 return;
             }
+
+            HandleUnknownMessageWindow(window, eventId);
         }
         catch (Exception e) {
             this.automater.logError(e.toString());
@@ -590,6 +592,41 @@ public class WindowEventListener implements AWTEventListener {
         CloseMainWindow();
 
         return true;
+    }
+
+    private boolean HandleUnknownMessageWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String windowName = window.getName();
+
+        if (windowName != null && windowName.startsWith("dialog"))
+        {
+            JTextPane textPane = Common.getTextPane(window);
+            String text = "";
+            if (textPane != null) {
+                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+            }
+            else {
+                text = Common.getLabelText(window);
+            }
+
+            if (text != null && text.length() > 0)
+            {
+                this.automater.logMessage("Unknown message window detected: " + text);
+            }
+
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private void CloseMainWindow()
