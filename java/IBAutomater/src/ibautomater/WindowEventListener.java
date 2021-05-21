@@ -488,6 +488,9 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Exit Session Setting")) {
+            String text = String.join(" ", Common.getLabelTextLines(window));
+            this.automater.logMessage("Content: " + text);
+
             String buttonText = "OK";
             JButton button = Common.getButton(window, buttonText);
 
@@ -519,9 +522,6 @@ public class WindowEventListener implements AWTEventListener {
                 text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
             }
 
-            // log the message to capture future unhandled messages
-            this.automater.logMessage(text);
-
             if (!text.contains("API support is not available for accounts that support free trading."))
             {
                 return false;
@@ -548,9 +548,6 @@ public class WindowEventListener implements AWTEventListener {
         String text = "";
         if (textPane != null) {
             text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
-
-            // log the message to capture future unhandled messages
-            this.automater.logMessage(text);
         }
 
         if (!text.contains("You have elected to have your trading platform restart automatically"))
@@ -594,14 +591,23 @@ public class WindowEventListener implements AWTEventListener {
         return true;
     }
 
+    private boolean IsKnownWindowTitle(String title) {
+        if (title.equals("Second Factor Authentication")) {
+            return true;
+        }
+
+        return false;
+    }
+
     private boolean HandleUnknownMessageWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
 
+        String title = Common.getTitle(window);
         String windowName = window.getName();
 
-        if (windowName != null && windowName.startsWith("dialog"))
+        if (windowName != null && windowName.startsWith("dialog") && !IsKnownWindowTitle(title))
         {
             JTextPane textPane = Common.getTextPane(window);
             String text = "";
@@ -609,7 +615,7 @@ public class WindowEventListener implements AWTEventListener {
                 text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
             }
             else {
-                text = Common.getLabelText(window);
+                text = String.join(" ", Common.getLabelTextLines(window));
             }
 
             if (text != null && text.length() > 0)
