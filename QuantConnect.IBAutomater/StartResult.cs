@@ -85,7 +85,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// The IBGateway restarted process was not found
         /// </summary>
-        RestartedProcessNotFound
+        RestartedProcessNotFound,
+
+        /// <summary>
+        /// An unknown IB message window was detected
+        /// </summary>
+        UnknownMessageWindowDetected
     }
 
     /// <summary>
@@ -147,6 +152,10 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.RestartedProcessNotFound,
                     "The IBGateway restarted process was not found."
+                },
+                {
+                    ErrorCode.UnknownMessageWindowDetected,
+                    "An unknown IB message window was detected."
                 }
             };
 

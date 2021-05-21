@@ -157,6 +157,22 @@ public class Common {
         return textPanes.size() > 0 ? (JTextPane)textPanes.get(0) : null;
     }
 
+    public static List<String> getLabelTextLines(Container container) {
+        List<String> lines = new ArrayList<>();
+
+        ArrayList<Component> labels = new ArrayList<>();
+        Common.loadComponents(container, JLabel.class, labels);
+        for (Component component : labels) {
+            JLabel label = (JLabel)component;
+            String labelText = label.getText();
+            if (labelText != null && labelText.length() > 0) {
+                lines.add(labelText.replaceAll("\\<.*?>", " ").trim());
+            }
+        }
+
+        return lines;
+    }
+
     public static JTree getTree(Container container) {
         ArrayList<Component> trees = new ArrayList<>();
         Common.loadComponents(container, JTree.class, trees);
