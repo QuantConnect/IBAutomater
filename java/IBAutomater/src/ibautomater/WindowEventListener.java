@@ -51,6 +51,7 @@ public class WindowEventListener implements AWTEventListener {
             this.put(WindowEvent.WINDOW_CLOSED, "WINDOW_CLOSED");
         }
     };
+    private boolean isAutoRestartTokenExpired = false;
 
     WindowEventListener(IBAutomater automater) {
         this.automater = automater;
@@ -584,9 +585,15 @@ public class WindowEventListener implements AWTEventListener {
             throw new Exception("Button not found: [" + buttonText + "]");
         }
 
-        this.automater.logMessage("Auto-restart token expired, closing IBGateway");
+        // we can do this only once, to avoid closing the restarted process
+        if (!this.isAutoRestartTokenExpired)
+        {
+            this.isAutoRestartTokenExpired = true;
 
-        CloseMainWindow();
+            this.automater.logMessage("Auto-restart token expired, closing IBGateway");
+
+            CloseMainWindow();
+        }
 
         return true;
     }
