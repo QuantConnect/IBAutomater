@@ -319,6 +319,8 @@ namespace QuantConnect.IBAutomater
                         }
                         else
                         {
+                            TraceIbLauncherLogFile();
+
                             _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                             message = "IB Automater initialization timeout.";
                         }
@@ -449,6 +451,8 @@ namespace QuantConnect.IBAutomater
                 // a Java exception was thrown
                 if (text.StartsWith("Exception"))
                 {
+                    TraceIbLauncherLogFile();
+
                     _lastStartResult = new StartResult(ErrorCode.JavaException, text);
                     _ibAutomaterInitializeEvent.Set();
                 }
@@ -463,6 +467,8 @@ namespace QuantConnect.IBAutomater
                 // an unknown message window was detected
                 else if (text.StartsWith("Unknown message window detected"))
                 {
+                    TraceIbLauncherLogFile();
+
                     _lastStartResult = new StartResult(ErrorCode.UnknownMessageWindowDetected, text);
                     _ibAutomaterInitializeEvent.Set();
                 }
@@ -502,6 +508,8 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
                 if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                 {
+                    TraceIbLauncherLogFile();
+
                     _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                     return;
                 }
@@ -518,6 +526,8 @@ namespace QuantConnect.IBAutomater
                     if (process == null)
                     {
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+
+                        TraceIbLauncherLogFile();
 
                         _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
                     }
@@ -908,6 +918,37 @@ namespace QuantConnect.IBAutomater
             }
 
             return process.ExitCode;
+        }
+
+        private void TraceIbLauncherLogFile()
+        {
+            var ibLauncherLogFile = Path.Combine(_ibDirectory, "launcher.log");
+
+            if (File.Exists(ibLauncherLogFile))
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IB launcher log file: {ibLauncherLogFile}"));
+
+                try
+                {
+                    using (var fileStream = new FileStream(ibLauncherLogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        fileStream.Seek(0, SeekOrigin.Begin);
+
+                        using (var reader = new StreamReader(fileStream))
+                        {
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"[IB Launcher] {line}"));
+                            }
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading IB launcher log file: {exception.Message}"));
+                }
+            }
         }
     }
 }
