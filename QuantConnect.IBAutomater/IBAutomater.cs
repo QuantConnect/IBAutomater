@@ -33,7 +33,7 @@ namespace QuantConnect.IBAutomater
     {
         private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(10);
 
-        private readonly string _ibDirectory;
+        private string _ibDirectory;
         private readonly string _ibVersion;
         private readonly string _userName;
         private readonly string _password;
@@ -206,21 +206,30 @@ namespace QuantConnect.IBAutomater
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion}"));
-
                 var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
-                if (!Directory.Exists(ibGatewayVersionPath))
+
+                if (IsLinux && Convert.ToInt32(_ibVersion) >= 984)
                 {
-                    return new StartResult(ErrorCode.IbGatewayVersionNotInstalled, $"Version: {_ibVersion}");
+                    _ibDirectory = _ibDirectory.Replace("Jts", "ibgateway");
+                    ibGatewayVersionPath = _ibDirectory;
+
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway path changed to: {_ibDirectory}"));
                 }
 
-                var jreInstallPath = GetJreInstallPath();
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion} - Path: {_ibDirectory}"));
+
+                if (!Directory.Exists(ibGatewayVersionPath))
+                {
+                    return new StartResult(ErrorCode.IbGatewayVersionNotInstalled, $"Version: {_ibVersion} - Path: {ibGatewayVersionPath}");
+                }
+
+                var jreInstallPath = GetJreInstallPath(ibGatewayVersionPath);
                 if (string.IsNullOrWhiteSpace(jreInstallPath))
                 {
                     return new StartResult(ErrorCode.JavaNotFound);
                 }
 
-                UpdateIbGatewayConfiguration();
+                UpdateIbGatewayConfiguration(ibGatewayVersionPath);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
@@ -240,13 +249,13 @@ namespace QuantConnect.IBAutomater
                 string arguments;
                 if (IsWindows)
                 {
-                    fileName = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.exe";
+                    fileName = $"{ibGatewayVersionPath}/ibgateway.exe";
                     arguments = string.Empty;
                 }
                 else
                 {
                     fileName = "IBAutomater.sh";
-                    arguments = $"{_ibDirectory} {_ibVersion}";
+                    arguments = ibGatewayVersionPath;
                 }
 
                 var process = new Process
@@ -833,12 +842,12 @@ namespace QuantConnect.IBAutomater
                 $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
         }
 
-        private string GetJreInstallPath()
+        private string GetJreInstallPath(string ibGatewayVersionPath)
         {
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Searching for TWS JRE path"));
 
             // Find TWS Java location (depends on OS and IBGateway version)
-            var install4JPath = $"{_ibDirectory}/ibgateway/{_ibVersion}/.install4j";
+            var install4JPath = $"{ibGatewayVersionPath}/.install4j";
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Install4J path: {install4JPath}"));
 
             foreach (var fileName in new[] { "pref_jre.cfg", "inst_jre.cfg" })
@@ -878,10 +887,10 @@ namespace QuantConnect.IBAutomater
                 : password;
         }
 
-        private void UpdateIbGatewayConfiguration()
+        private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath)
         {
             // update IBGateway configuration file with Java agent entry
-            var ibGatewayConfigFile = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.vmoptions";
+            var ibGatewayConfigFile = $"{ibGatewayVersionPath}/ibgateway.vmoptions";
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
 
             var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
