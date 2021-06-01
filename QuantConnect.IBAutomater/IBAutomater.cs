@@ -33,7 +33,7 @@ namespace QuantConnect.IBAutomater
     {
         private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(10);
 
-        private string _ibDirectory;
+        private readonly string _ibDirectory;
         private readonly string _ibVersion;
         private readonly string _userName;
         private readonly string _password;
@@ -210,13 +210,12 @@ namespace QuantConnect.IBAutomater
 
                 if (IsLinux && Convert.ToInt32(_ibVersion) >= 984)
                 {
-                    _ibDirectory = _ibDirectory.Replace("Jts", "ibgateway");
-                    ibGatewayVersionPath = _ibDirectory;
+                    ibGatewayVersionPath = _ibDirectory.Replace("Jts", "ibgateway");
 
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway path changed to: {_ibDirectory}"));
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway path changed to: {ibGatewayVersionPath}"));
                 }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion} - Path: {_ibDirectory}"));
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion} - Path: {ibGatewayVersionPath}"));
 
                 if (!Directory.Exists(ibGatewayVersionPath))
                 {
