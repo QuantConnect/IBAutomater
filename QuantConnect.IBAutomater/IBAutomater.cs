@@ -261,6 +261,8 @@ namespace QuantConnect.IBAutomater
                 {
                     StartInfo = new ProcessStartInfo(fileName, arguments)
                     {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                         CreateNoWindow = true
@@ -268,6 +270,20 @@ namespace QuantConnect.IBAutomater
                     EnableRaisingEvents = true
                 };
 
+                process.OutputDataReceived += (s, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                    }
+                };
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                    }
+                };
                 process.Exited += OnProcessExited;
 
                 try
@@ -288,6 +304,9 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - Name:{process.ProcessName} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
+
+                process.BeginErrorReadLine();
+                process.BeginOutputReadLine();
 
                 if (waitForExit)
                 {
@@ -550,6 +569,8 @@ namespace QuantConnect.IBAutomater
 
                         // replace process
                         _process = process;
+
+                        // we cannot add output/error redirection event handlers here as we didn't start the process
 
                         process.Exited += OnProcessExited;
                         process.EnableRaisingEvents = true;
