@@ -32,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
@@ -52,6 +53,7 @@ public class WindowEventListener implements AWTEventListener {
         }
     };
     private boolean isAutoRestartTokenExpired = false;
+    private Window viewLogsWindow = null;
 
     WindowEventListener(IBAutomater automater) {
         this.automater = automater;
@@ -110,6 +112,15 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleAutoRestartTokenExpiredWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleViewLogsWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleExportFileNameWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleExportFinishedWindow(window, eventId)) {
                 return;
             }
 
@@ -401,6 +412,8 @@ public class WindowEventListener implements AWTEventListener {
         this.automater.logMessage("Click button: [OK]");
         okButton.doClick();
 
+        SaveIBLogs();
+
         this.automater.logMessage("Configuration settings updated.");
 
         return true;
@@ -627,6 +640,8 @@ public class WindowEventListener implements AWTEventListener {
 
             if (text != null && text.length() > 0)
             {
+                SaveIBLogs();
+
                 this.automater.logMessage("Unknown message window detected: " + text);
             }
 
@@ -640,6 +655,77 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         return false;
+    }
+
+    private boolean HandleViewLogsWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.contains("View Logs")) {
+
+            String buttonText = "Export Today Logs...";
+            JButton button = Common.getButton(window, buttonText);
+            if (button != null) {
+                this.viewLogsWindow = window;
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleExportFileNameWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.contains("Enter export filename")) {
+
+            String buttonText = "Open";
+            JButton button = Common.getButton(window, buttonText);
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleExportFinishedWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        if (Common.getOptionPane(window, "Finished exporting logs") == null) {
+            return false;
+        }
+
+        JButton button = Common.getButton(window, "OK");
+        if (button != null) {
+            this.automater.logMessage("Click button: [OK]");
+            button.doClick();
+        }
+
+        String buttonText = "Cancel";
+        JButton cancelButton = Common.getButton(this.viewLogsWindow, buttonText);
+        if (cancelButton != null) {
+            this.viewLogsWindow = null;
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            cancelButton.doClick();
+        }
+
+        return true;
     }
 
     private void CloseMainWindow()
@@ -684,6 +770,20 @@ public class WindowEventListener implements AWTEventListener {
         components.forEach((component) -> {
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]");
         });
+    }
+
+    private void SaveIBLogs()
+    {
+        Window window = this.automater.getMainWindow();
+        if (window != null) {
+            JMenuItem menuItem = Common.getMenuItem(window, "File", "Gateway Logs");
+            if (menuItem != null) {
+                menuItem.doClick();
+            }
+            else {
+                this.automater.logMessage("Gateway Logs menu not found.");
+            }
+        }
     }
 }
 

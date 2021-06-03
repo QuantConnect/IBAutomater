@@ -204,23 +204,34 @@ namespace QuantConnect.IBAutomater
                     // need permission for execution
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
-                }
 
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway version: {_ibVersion}"));
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomaterScreenCapture.sh"));
+                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomaterScreenCapture.sh");
+                }
 
                 var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
-                if (!Directory.Exists(ibGatewayVersionPath))
+
+                if (IsLinux && Convert.ToInt32(_ibVersion) >= 984)
                 {
-                    return new StartResult(ErrorCode.IbGatewayVersionNotInstalled, $"Version: {_ibVersion}");
+                    ibGatewayVersionPath = _ibDirectory.Replace("Jts", "ibgateway");
+
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway path changed to: {ibGatewayVersionPath}"));
                 }
 
-                var jreInstallPath = GetJreInstallPath();
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway - Version: {_ibVersion} - Path: {ibGatewayVersionPath} - User: {_userName}"));
+
+                if (!Directory.Exists(ibGatewayVersionPath))
+                {
+                    return new StartResult(ErrorCode.IbGatewayVersionNotInstalled, $"Version: {_ibVersion} - Path: {ibGatewayVersionPath}");
+                }
+
+                var jreInstallPath = GetJreInstallPath(ibGatewayVersionPath);
                 if (string.IsNullOrWhiteSpace(jreInstallPath))
                 {
                     return new StartResult(ErrorCode.JavaNotFound);
                 }
 
-                UpdateIbGatewayConfiguration();
+                UpdateIbGatewayConfiguration(ibGatewayVersionPath);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
@@ -240,19 +251,21 @@ namespace QuantConnect.IBAutomater
                 string arguments;
                 if (IsWindows)
                 {
-                    fileName = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.exe";
+                    fileName = $"{ibGatewayVersionPath}/ibgateway.exe";
                     arguments = string.Empty;
                 }
                 else
                 {
                     fileName = "IBAutomater.sh";
-                    arguments = $"{_ibDirectory} {_ibVersion}";
+                    arguments = ibGatewayVersionPath;
                 }
 
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo(fileName, arguments)
                     {
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
                         UseShellExecute = false,
                         WindowStyle = ProcessWindowStyle.Hidden,
                         CreateNoWindow = true
@@ -260,6 +273,20 @@ namespace QuantConnect.IBAutomater
                     EnableRaisingEvents = true
                 };
 
+                process.OutputDataReceived += (s, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                    }
+                };
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (e.Data != null)
+                    {
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                    }
+                };
                 process.Exited += OnProcessExited;
 
                 try
@@ -281,6 +308,9 @@ namespace QuantConnect.IBAutomater
 
                 _process = process;
 
+                process.BeginErrorReadLine();
+                process.BeginOutputReadLine();
+
                 if (waitForExit)
                 {
                     process.WaitForExit();
@@ -299,6 +329,8 @@ namespace QuantConnect.IBAutomater
                                 ? new OutputDataReceivedEventArgs($"IBGateway process found - Id:{p.Id} - Name:{p.ProcessName}")
                                 : new OutputDataReceivedEventArgs($"IBGateway process not found: {processName}"));
 
+                        SaveScreenShot();
+
                         message = "IB Automater initialized.";
                     }
                     else
@@ -308,6 +340,9 @@ namespace QuantConnect.IBAutomater
                             // wait for completion of two-factor authentication
                             if (!_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromMinutes(3)))
                             {
+                                TraceIbLauncherLogFile();
+                                SaveScreenShot();
+
                                 _lastStartResult = new StartResult(ErrorCode.TwoFactorConfirmationTimeout);
                                 message = "IB Automater 2FA timeout.";
                             }
@@ -320,6 +355,7 @@ namespace QuantConnect.IBAutomater
                         else
                         {
                             TraceIbLauncherLogFile();
+                            SaveScreenShot();
 
                             _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                             message = "IB Automater initialization timeout.";
@@ -452,6 +488,7 @@ namespace QuantConnect.IBAutomater
                 if (text.StartsWith("Exception"))
                 {
                     TraceIbLauncherLogFile();
+                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.JavaException, text);
                     _ibAutomaterInitializeEvent.Set();
@@ -468,6 +505,7 @@ namespace QuantConnect.IBAutomater
                 else if (text.StartsWith("Unknown message window detected"))
                 {
                     TraceIbLauncherLogFile();
+                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.UnknownMessageWindowDetected, text);
                     _ibAutomaterInitializeEvent.Set();
@@ -509,6 +547,7 @@ namespace QuantConnect.IBAutomater
                 if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                 {
                     TraceIbLauncherLogFile();
+                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                     return;
@@ -528,6 +567,7 @@ namespace QuantConnect.IBAutomater
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
 
                         TraceIbLauncherLogFile();
+                        SaveScreenShot();
 
                         _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
                     }
@@ -542,6 +582,8 @@ namespace QuantConnect.IBAutomater
 
                         // replace process
                         _process = process;
+
+                        // we cannot add output/error redirection event handlers here as we didn't start the process
 
                         process.Exited += OnProcessExited;
                         process.EnableRaisingEvents = true;
@@ -833,12 +875,12 @@ namespace QuantConnect.IBAutomater
                 $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
         }
 
-        private string GetJreInstallPath()
+        private string GetJreInstallPath(string ibGatewayVersionPath)
         {
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Searching for TWS JRE path"));
 
             // Find TWS Java location (depends on OS and IBGateway version)
-            var install4JPath = $"{_ibDirectory}/ibgateway/{_ibVersion}/.install4j";
+            var install4JPath = $"{ibGatewayVersionPath}/.install4j";
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Install4J path: {install4JPath}"));
 
             foreach (var fileName in new[] { "pref_jre.cfg", "inst_jre.cfg" })
@@ -871,17 +913,10 @@ namespace QuantConnect.IBAutomater
             return null;
         }
 
-        private string EscapePassword(string password)
-        {
-            return IsWindows
-                ? password.Replace("&", "^&").Replace("|", "^|")
-                : password;
-        }
-
-        private void UpdateIbGatewayConfiguration()
+        private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath)
         {
             // update IBGateway configuration file with Java agent entry
-            var ibGatewayConfigFile = $"{_ibDirectory}/ibgateway/{_ibVersion}/ibgateway.vmoptions";
+            var ibGatewayConfigFile = $"{ibGatewayVersionPath}/ibgateway.vmoptions";
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
 
             var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -947,6 +982,23 @@ namespace QuantConnect.IBAutomater
                 catch (Exception exception)
                 {
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading IB launcher log file: {exception.Message}"));
+                }
+            }
+        }
+
+        private void SaveScreenShot()
+        {
+            if (IsLinux)
+            {
+                try
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Start IBAutomaterScreenCapture.sh"));
+
+                    ExecuteProcessAndWaitForExit("IBAutomaterScreenCapture.sh", $"/tmp/IBAutomater-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
+                }
+                catch (Exception exception)
+                {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error in SaveScreenShot(): {exception.Message}"));
                 }
             }
         }
