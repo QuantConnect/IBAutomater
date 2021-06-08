@@ -277,14 +277,14 @@ namespace QuantConnect.IBAutomater
                 {
                     if (e.Data != null)
                     {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data));
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data.Replace(_password, "***")));
                     }
                 };
                 process.ErrorDataReceived += (s, e) =>
                 {
                     if (e.Data != null)
                     {
-                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data));
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data.Replace(_password, "***")));
                     }
                 };
                 process.Exited += OnProcessExited;

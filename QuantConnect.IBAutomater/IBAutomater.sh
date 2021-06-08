@@ -2,8 +2,10 @@
 
 ps -AFH
 
-pkill Xvfb
-pkill java
+pkill -9 Xvfb
+pkill -9 java
+
+sleep 5
 
 ps -AFH
 
