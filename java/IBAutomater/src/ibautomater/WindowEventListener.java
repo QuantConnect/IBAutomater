@@ -381,6 +381,16 @@ public class WindowEventListener implements AWTEventListener {
             createApiLog.setSelected(true);
         }
 
+        String faText = "Use Account Groups with Allocation Methods";
+        JCheckBox faCheckBox = Common.getCheckBox(window, faText);
+        if (faCheckBox == null) {
+            throw new Exception("'" + faText + "' check box not found");
+        }
+        if (faCheckBox.isSelected()) {
+            this.automater.logMessage("Unselect checkbox: [" + faText + "]");
+            faCheckBox.setSelected(false);
+        }
+
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
 
         String bypassOrderPrecautionsText = "Bypass Order Precautions for API Orders";
