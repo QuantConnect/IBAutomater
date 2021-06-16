@@ -123,6 +123,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleExportFinishedWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleAutoRestartNowWindow(window, eventId)) {
+                return;
+            }
 
             HandleUnknownMessageWindow(window, eventId);
         }
@@ -621,6 +624,27 @@ public class WindowEventListener implements AWTEventListener {
         return true;
     }
 
+    private boolean HandleAutoRestartNowWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String text = GetWindowText(window);
+        
+        if (text != null && text.contains("Would you like to restart now?"))
+        {
+            JButton button = Common.getButton(window, "No");
+            if (button != null) {
+                this.automater.logMessage("Click button: [No]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }    
+    
     private boolean IsKnownWindowTitle(String title) {
         if (title.equals("Second Factor Authentication")) {
             return true;
@@ -629,6 +653,20 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
+    private String GetWindowText(Window window) {
+        String text;
+
+        JTextPane textPane = Common.getTextPane(window);
+        if (textPane != null) {
+            text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+        }
+        else {
+            text = String.join(" ", Common.getLabelTextLines(window));
+        }
+        
+        return text;
+    }
+    
     private boolean HandleUnknownMessageWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
@@ -639,14 +677,7 @@ public class WindowEventListener implements AWTEventListener {
 
         if (windowName != null && windowName.startsWith("dialog") && !IsKnownWindowTitle(title))
         {
-            JTextPane textPane = Common.getTextPane(window);
-            String text = "";
-            if (textPane != null) {
-                text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
-            }
-            else {
-                text = String.join(" ", Common.getLabelTextLines(window));
-            }
+            String text = GetWindowText(window);
 
             if (text != null && text.length() > 0)
             {
@@ -679,9 +710,19 @@ public class WindowEventListener implements AWTEventListener {
             String buttonText = "Export Today Logs...";
             JButton button = Common.getButton(window, buttonText);
             if (button != null) {
-                this.viewLogsWindow = window;
-                this.automater.logMessage("Click button: [" + buttonText + "]");
-                button.doClick();
+                if (button.isEnabled()) {
+                    this.viewLogsWindow = window;
+                    this.automater.logMessage("Click button: [" + buttonText + "]");
+                    button.doClick();
+                }
+                else {
+                    buttonText = "Cancel";
+                    button = Common.getButton(window, buttonText);
+                    if (button != null) {
+                        this.automater.logMessage("Click button: [" + buttonText + "]");
+                        button.doClick();
+                    }
+                }
             }
 
             return true;
