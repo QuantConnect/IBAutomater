@@ -554,6 +554,8 @@ public class WindowEventListener implements AWTEventListener {
                 return false;
             }
 
+            this.automater.logMessage(text);
+
             JButton button = Common.getButton(window, "OK");
             if (button != null) {
                 this.automater.logMessage("Click button: [OK]");
@@ -581,6 +583,8 @@ public class WindowEventListener implements AWTEventListener {
         {
             return false;
         }
+
+        this.automater.logMessage(text);
 
         JButton button = Common.getButton(window, "OK");
         if (button != null) {
@@ -630,9 +634,11 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         String text = GetWindowText(window);
-        
+
         if (text != null && text.contains("Would you like to restart now?"))
         {
+            this.automater.logMessage(text);
+
             JButton button = Common.getButton(window, "No");
             if (button != null) {
                 this.automater.logMessage("Click button: [No]");
@@ -643,8 +649,8 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         return false;
-    }    
-    
+    }
+
     private boolean IsKnownWindowTitle(String title) {
         if (title.equals("Second Factor Authentication")) {
             return true;
@@ -663,10 +669,10 @@ public class WindowEventListener implements AWTEventListener {
         else {
             text = String.join(" ", Common.getLabelTextLines(window));
         }
-        
+
         return text;
     }
-    
+
     private boolean HandleUnknownMessageWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
