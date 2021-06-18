@@ -204,9 +204,6 @@ namespace QuantConnect.IBAutomater
                     // need permission for execution
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
-
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomaterScreenCapture.sh"));
-                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomaterScreenCapture.sh");
                 }
 
                 var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
@@ -329,8 +326,6 @@ namespace QuantConnect.IBAutomater
                                 ? new OutputDataReceivedEventArgs($"IBGateway process found - Id:{p.Id} - Name:{p.ProcessName}")
                                 : new OutputDataReceivedEventArgs($"IBGateway process not found: {processName}"));
 
-                        SaveScreenShot();
-
                         message = "IB Automater initialized.";
                     }
                     else
@@ -341,7 +336,6 @@ namespace QuantConnect.IBAutomater
                             if (!_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromMinutes(3)))
                             {
                                 TraceIbLauncherLogFile();
-                                SaveScreenShot();
 
                                 _lastStartResult = new StartResult(ErrorCode.TwoFactorConfirmationTimeout);
                                 message = "IB Automater 2FA timeout.";
@@ -355,7 +349,6 @@ namespace QuantConnect.IBAutomater
                         else
                         {
                             TraceIbLauncherLogFile();
-                            SaveScreenShot();
 
                             _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                             message = "IB Automater initialization timeout.";
@@ -488,7 +481,6 @@ namespace QuantConnect.IBAutomater
                 if (text.StartsWith("Exception"))
                 {
                     TraceIbLauncherLogFile();
-                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.JavaException, text);
                     _ibAutomaterInitializeEvent.Set();
@@ -505,7 +497,6 @@ namespace QuantConnect.IBAutomater
                 else if (text.StartsWith("Unknown message window detected"))
                 {
                     TraceIbLauncherLogFile();
-                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.UnknownMessageWindowDetected, text);
                     _ibAutomaterInitializeEvent.Set();
@@ -547,7 +538,6 @@ namespace QuantConnect.IBAutomater
                 if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                 {
                     TraceIbLauncherLogFile();
-                    SaveScreenShot();
 
                     _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
                     return;
@@ -567,7 +557,6 @@ namespace QuantConnect.IBAutomater
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
 
                         TraceIbLauncherLogFile();
-                        SaveScreenShot();
 
                         _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
                     }
@@ -982,23 +971,6 @@ namespace QuantConnect.IBAutomater
                 catch (Exception exception)
                 {
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading IB launcher log file: {exception.Message}"));
-                }
-            }
-        }
-
-        private void SaveScreenShot()
-        {
-            if (IsLinux)
-            {
-                try
-                {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Start IBAutomaterScreenCapture.sh"));
-
-                    ExecuteProcessAndWaitForExit("IBAutomaterScreenCapture.sh", $"/tmp/IBAutomater-{DateTime.UtcNow:yyyyMMddHHmmss}.png");
-                }
-                catch (Exception exception)
-                {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error in SaveScreenShot(): {exception.Message}"));
                 }
             }
         }
