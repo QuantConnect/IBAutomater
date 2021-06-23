@@ -652,7 +652,9 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     private boolean IsKnownWindowTitle(String title) {
-        if (title.equals("Second Factor Authentication")) {
+        if (title.equals("Second Factor Authentication") ||
+            title.equals("Security Code Card Authentication") ||
+            title.equals("Enter security code")) {
             return true;
         }
 
