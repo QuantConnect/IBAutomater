@@ -31,7 +31,7 @@ namespace CSharpDemoIBAutomater
             var ibPort = 4002;
 
             // Create a new instance of the IBAutomater class
-            var automater = new IBAutomater(ibDirectory, ibVersion, ibUserName, ibPassword, ibTradingMode, ibPort);
+            var automater = new IBAutomater(ibDirectory, ibVersion, ibUserName, ibPassword, ibTradingMode, ibPort, false);
 
             // Attach the event handlers
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");

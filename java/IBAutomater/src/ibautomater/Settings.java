@@ -20,12 +20,14 @@ public class Settings {
     private final String password;
     private final String tradingMode;
     private final int portNumber;
+    private final boolean exportIbGatewayLogs;
 
-    public Settings(String userName, String password, String tradingMode, int portNumber) {
+    public Settings(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
         this.userName = userName;
         this.password = password;
         this.tradingMode = tradingMode;
         this.portNumber = portNumber;
+        this.exportIbGatewayLogs = exportIbGatewayLogs;
     }
 
     public String getUserName() {
@@ -42,6 +44,10 @@ public class Settings {
 
     public int getPortNumber() {
         return this.portNumber;
+    }
+
+    public boolean getExportIbGatewayLogs() {
+        return this.exportIbGatewayLogs;
     }
 }
 
