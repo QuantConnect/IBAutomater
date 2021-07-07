@@ -425,7 +425,9 @@ public class WindowEventListener implements AWTEventListener {
         this.automater.logMessage("Click button: [OK]");
         okButton.doClick();
 
-        SaveIBLogs();
+        if (this.automater.getSettings().getExportIbGatewayLogs()) {
+            SaveIBLogs();
+        }
 
         this.automater.logMessage("Configuration settings updated.");
 

@@ -33,12 +33,13 @@ public final class IBAutomater {
         String password = argValues[1];
         String tradingMode = argValues[2];
         int portNumber = Integer.parseInt(argValues[3]);
+        boolean exportIbGatewayLogs = Boolean.parseBoolean(argValues[4]);
 
-        IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber);
+        IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
     }
 
-    public IBAutomater(String userName, String password, String tradingMode, int portNumber) {
-        this.settings = new Settings(userName, password, tradingMode, portNumber);
+    public IBAutomater(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
+        this.settings = new Settings(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
 
         try
         {

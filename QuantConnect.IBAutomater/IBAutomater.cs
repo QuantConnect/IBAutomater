@@ -39,6 +39,7 @@ namespace QuantConnect.IBAutomater
         private readonly string _password;
         private readonly string _tradingMode;
         private readonly int _portNumber;
+        private readonly bool _exportIbGatewayLogs;
 
         private readonly object _locker = new object();
         private Process _process;
@@ -120,9 +121,10 @@ namespace QuantConnect.IBAutomater
             {
                 ibVersion = config["ib-version"].ToString();
             }
+            var exportIbGatewayLogs = config["ib-export-ibgateway-logs"].ToObject<bool>();
 
             // Create a new instance of the IBAutomater class
-            var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber);
+            var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber, exportIbGatewayLogs);
 
             // Attach the event handlers
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
@@ -164,7 +166,8 @@ namespace QuantConnect.IBAutomater
         /// <param name="password">The password</param>
         /// <param name="tradingMode">The trading mode ('paper' or 'live')</param>
         /// <param name="portNumber">The API port number</param>
-        public IBAutomater(string ibDirectory, string ibVersion, string userName, string password, string tradingMode, int portNumber)
+        /// <param name="exportIbGatewayLogs">Export IB Gateway logs if true</param>
+        public IBAutomater(string ibDirectory, string ibVersion, string userName, string password, string tradingMode, int portNumber, bool exportIbGatewayLogs)
         {
             _ibDirectory = ibDirectory;
             _ibVersion = ibVersion;
@@ -172,6 +175,7 @@ namespace QuantConnect.IBAutomater
             _password = password;
             _tradingMode = tradingMode;
             _portNumber = portNumber;
+            _exportIbGatewayLogs = exportIbGatewayLogs;
 
             _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
         }
@@ -206,14 +210,7 @@ namespace QuantConnect.IBAutomater
                     ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
                 }
 
-                var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
-
-                if (IsLinux && Convert.ToInt32(_ibVersion) >= 984)
-                {
-                    ibGatewayVersionPath = _ibDirectory.Replace("Jts", "ibgateway");
-
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway path changed to: {ibGatewayVersionPath}"));
-                }
+                var ibGatewayVersionPath = GetIbGatewayVersionPath();
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Loading IBGateway - Version: {_ibVersion} - Path: {ibGatewayVersionPath} - User: {_userName}"));
 
@@ -228,7 +225,7 @@ namespace QuantConnect.IBAutomater
                     return new StartResult(ErrorCode.JavaNotFound);
                 }
 
-                UpdateIbGatewayConfiguration(ibGatewayVersionPath);
+                UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
@@ -637,6 +634,9 @@ namespace QuantConnect.IBAutomater
                 }
 
                 _process = null;
+
+                // remove Java agent setting from IB configuration file
+                UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
             }
         }
 
@@ -902,14 +902,26 @@ namespace QuantConnect.IBAutomater
             return null;
         }
 
-        private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath)
+        private string GetIbGatewayVersionPath()
+        {
+            var ibGatewayVersionPath = $"{_ibDirectory}/ibgateway/{_ibVersion}";
+
+            if (IsLinux && Convert.ToInt32(_ibVersion) >= 984)
+            {
+                ibGatewayVersionPath = _ibDirectory.Replace("Jts", "ibgateway");
+            }
+
+            return ibGatewayVersionPath;
+        }
+
+        private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent)
         {
             // update IBGateway configuration file with Java agent entry
             var ibGatewayConfigFile = $"{ibGatewayVersionPath}/ibgateway.vmoptions";
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
 
             var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={_userName} {_password} {_tradingMode} {_portNumber}";
+            var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={_userName} {_password} {_tradingMode} {_portNumber} {_exportIbGatewayLogs}";
 
             var lines = File.ReadAllLines(ibGatewayConfigFile).ToList();
             var existing = false;
@@ -919,12 +931,20 @@ namespace QuantConnect.IBAutomater
 
                 if (line.StartsWith("-javaagent:") && line.Contains("IBAutomater"))
                 {
-                    lines[i] = javaAgentConfig;
+                    if (enableJavaAgent)
+                    {
+                        lines[i] = javaAgentConfig;
+                    }
+                    else
+                    {
+                        lines.RemoveAt(i--);
+                    }
+
                     existing = true;
                 }
             }
 
-            if (!existing)
+            if (enableJavaAgent && !existing)
             {
                 lines.Add(javaAgentConfig);
             }
