@@ -31,7 +31,7 @@ namespace QuantConnect.IBAutomater
     /// </summary>
     public class IBAutomater
     {
-        private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(10);
+        private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(15);
 
         private readonly string _ibDirectory;
         private readonly string _ibVersion;
