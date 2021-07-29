@@ -45,7 +45,6 @@ namespace QuantConnect.IBAutomater
         private Process _process;
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
-        private bool _twoFactorConfirmationPending;
         private bool _isRestartInProgress;
 
         private enum Region { America, Europe, Asia }
@@ -327,35 +326,13 @@ namespace QuantConnect.IBAutomater
                     }
                     else
                     {
-                        if (_twoFactorConfirmationPending)
-                        {
-                            // wait for completion of two-factor authentication
-                            if (!_ibAutomaterInitializeEvent.WaitOne(TimeSpan.FromMinutes(3)))
-                            {
-                                TraceIbLauncherLogFile();
+                        TraceIbLauncherLogFile();
 
-                                _lastStartResult = new StartResult(ErrorCode.TwoFactorConfirmationTimeout);
-                                message = "IB Automater 2FA timeout.";
-                            }
-                            else
-                            {
-                                // 2FA confirmation successful
-                                message = "IB Automater initialized.";
-                            }
-                        }
-                        else
-                        {
-                            TraceIbLauncherLogFile();
-
-                            _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
-                            message = "IB Automater initialization timeout.";
-                        }
+                        _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                        message = "IB Automater initialization timeout.";
                     }
 
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
-
-                    // reset the flag, this method is called multiple times
-                    _twoFactorConfirmationPending = false;
 
                     if (_lastStartResult.HasError)
                     {
@@ -455,9 +432,17 @@ namespace QuantConnect.IBAutomater
                         // waiting for 2FA confirmation on IBKR mobile app
                         const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
-
-                        _twoFactorConfirmationPending = true;
                     }
+                }
+
+                // 2FA timed out for the maximum number of attempts
+                else if (text.Contains("2FA maximum attempts reached"))
+                {
+                    const string message = "IB Automater 2FA timeout.";
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+
+                    _lastStartResult = new StartResult(ErrorCode.TwoFactorConfirmationTimeout);
+                    _ibAutomaterInitializeEvent.Set();
                 }
 
                 // a security dialog (code card) was detected by IBAutomater

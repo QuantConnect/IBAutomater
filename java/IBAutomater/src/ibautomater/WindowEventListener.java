@@ -21,6 +21,8 @@ import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +56,10 @@ public class WindowEventListener implements AWTEventListener {
     };
     private boolean isAutoRestartTokenExpired = false;
     private Window viewLogsWindow = null;
+
+    private Instant twoFactorConfirmationRequestTime;
+    private int twoFactorConfirmationAttempts = 0;
+    private final int maxTwoFactorConfirmationAttempts = 3;
 
     WindowEventListener(IBAutomater automater) {
         this.automater = automater;
@@ -124,6 +130,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleAutoRestartNowWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleTwoFactorAuthenticationWindow(window, eventId)) {
                 return;
             }
 
@@ -648,6 +657,55 @@ public class WindowEventListener implements AWTEventListener {
             }
 
             return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleTwoFactorAuthenticationWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED && eventId != WindowEvent.WINDOW_CLOSED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+        if (title != null && title.equals("Second Factor Authentication")) {
+            if (eventId == WindowEvent.WINDOW_OPENED) {
+                this.twoFactorConfirmationRequestTime = Instant.now();
+                this.twoFactorConfirmationAttempts++;
+                this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
+                return true;
+            }
+            else if (eventId == WindowEvent.WINDOW_CLOSED) {
+                Duration delta = Duration.between(this.twoFactorConfirmationRequestTime, Instant.now());
+                // the timeout can be a few seconds earlier than 3 minutes, so we use 150 seconds to be safe
+                if (delta.compareTo(Duration.ofSeconds(150)) >= 0) {
+                    this.automater.logMessage("2FA confirmation timeout");
+                    if (this.twoFactorConfirmationAttempts == this.maxTwoFactorConfirmationAttempts) {
+                        this.automater.logMessage("2FA maximum attempts reached");
+                    }
+                    else {
+                        this.automater.logMessage("New login attempt with 2FA");
+
+                        new Thread(()-> {
+                            try {
+                                // IB considers a 2FA timeout as a failed login attempt
+                                // so we wait before retrying to avoid the "Too many failed login attempts" error
+                                Thread.sleep(10000 * this.twoFactorConfirmationAttempts);
+
+                                Window mainWindow = this.automater.getMainWindow();
+                                HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                            } catch (Exception e) {
+                                this.automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                            }
+                        }).start();
+                    }
+                }
+                else {
+                    this.automater.logMessage("2FA confirmation success");
+                    this.twoFactorConfirmationAttempts = 0;
+                }
+                return true;
+            }
         }
 
         return false;
