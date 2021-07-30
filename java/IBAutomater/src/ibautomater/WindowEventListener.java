@@ -135,6 +135,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleTwoFactorAuthenticationWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleDisplayMarketDataWindow(window, eventId)) {
+                return;
+            }
 
             HandleUnknownMessageWindow(window, eventId);
         }
@@ -706,6 +709,30 @@ public class WindowEventListener implements AWTEventListener {
                 }
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    private boolean HandleDisplayMarketDataWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String text = GetWindowText(window);
+
+        if (text != null && text.contains("Bid, Ask and Last Size Display Update"))
+        {
+            this.automater.logMessage(text);
+
+            String buttonText = "I understand - display market data";
+            JButton button = Common.getButton(window, buttonText);
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+
+            return true;
         }
 
         return false;
