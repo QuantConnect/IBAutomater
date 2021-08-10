@@ -906,7 +906,8 @@ namespace QuantConnect.IBAutomater
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
 
             var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={_userName} {_password} {_tradingMode} {_portNumber} {_exportIbGatewayLogs}";
+            var javaAgentConfigFileName = Path.Combine(jarPath, "IBAutomater.json");
+            var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={javaAgentConfigFileName}";
 
             var lines = File.ReadAllLines(ibGatewayConfigFile).ToList();
             var existing = false;
@@ -935,6 +936,15 @@ namespace QuantConnect.IBAutomater
             }
 
             File.WriteAllLines(ibGatewayConfigFile, lines);
+
+            if (enableJavaAgent)
+            {
+                File.WriteAllText(javaAgentConfigFileName, $"{_userName}\n{_password}\n{_tradingMode}\n{_portNumber}\n{_exportIbGatewayLogs}");
+            }
+            else
+            {
+                File.Delete(javaAgentConfigFileName);
+            }
         }
 
         private static int GetProcessExitCode(Process process)

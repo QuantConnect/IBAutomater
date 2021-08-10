@@ -20,6 +20,9 @@ import java.awt.Window;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public final class IBAutomater {
     private final Settings settings;
@@ -27,7 +30,9 @@ public final class IBAutomater {
     private Window mainWindow;
 
     public static void premain(String args) throws Exception {
-        String[] argValues = args.split(" ");
+
+        String fileContent = new String(Files.readAllBytes(Paths.get(args)), StandardCharsets.UTF_8);
+        String[] argValues = fileContent.split("\n");
 
         String userName = argValues[0];
         String password = argValues[1];
