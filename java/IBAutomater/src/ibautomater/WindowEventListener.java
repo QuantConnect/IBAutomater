@@ -34,6 +34,7 @@ import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
@@ -776,7 +777,10 @@ public class WindowEventListener implements AWTEventListener {
 
             if (text != null && text.length() > 0)
             {
-                SaveIBLogs();
+                if (this.automater.getSettings().getExportIbGatewayLogs()) {
+                    SaveIBLogs();
+                }
+                LogWindowContents(window);
 
                 this.automater.logMessage("Unknown message window detected: " + text);
             }
@@ -914,7 +918,16 @@ public class WindowEventListener implements AWTEventListener {
         this.automater.logMessage("DEBUG: Window title: [" + Common.getTitle(window) + "] - Window name: [" + window.getName() + "]");
 
         components.forEach((component) -> {
-            this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]");
+            String text = "";
+            if (component instanceof JLabel)
+            {
+                text = " - Text: [" + ((JLabel) component).getText() + "]";
+            }
+            else if (component instanceof JTextPane)
+            {
+                text = " - Text: [" + ((JTextPane) component).getText() + "]";
+            }
+            this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
     }
 
