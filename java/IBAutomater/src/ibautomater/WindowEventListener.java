@@ -203,6 +203,18 @@ public class WindowEventListener implements AWTEventListener {
         }
         passwordTextField.setText(this.automater.getSettings().getPassword());
 
+        String useSslText = "Use SSL";
+        JCheckBox useSslCheckbox = Common.getCheckBox(window, useSslText);
+        if (useSslCheckbox == null) {
+            this.automater.logMessage("Use SSL checkbox not found");
+        }
+        else {
+            if (!useSslCheckbox.isSelected()) {
+                this.automater.logMessage("Select checkbox: [" + useSslText + "]");
+                useSslCheckbox.setSelected(true);
+            }
+        }
+
         String loginButtonText = isLiveTradingMode ? "Log In" : "Paper Log In";
         JButton loginButton = Common.getButton(window, loginButtonText);
         if (loginButton == null) {
