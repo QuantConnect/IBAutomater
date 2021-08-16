@@ -224,6 +224,7 @@ namespace QuantConnect.IBAutomater
                     return new StartResult(ErrorCode.JavaNotFound);
                 }
 
+                UpdateIbGatewayIniFile();
                 UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
@@ -897,6 +898,28 @@ namespace QuantConnect.IBAutomater
             }
 
             return ibGatewayVersionPath;
+        }
+
+        private void UpdateIbGatewayIniFile()
+        {
+            var ibGatewayIniFile = Path.Combine(_ibDirectory, "jts.ini");
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway ini file: {ibGatewayIniFile}"));
+
+            // The "Use SSL" checkbox in the IBGateway UX has inconsistent behavior,
+            // so we preset the "UseSSL=true" value in jts.ini
+            if (File.Exists(ibGatewayIniFile))
+            {
+                var iniText = File.ReadAllText(ibGatewayIniFile);
+                if (iniText.Contains("UseSSL=false"))
+                {
+                    iniText = iniText.Replace("UseSSL=false", "UseSSL=true");
+                    File.WriteAllText(ibGatewayIniFile, iniText);
+                }
+            }
+            else
+            {
+                File.WriteAllText(ibGatewayIniFile, $"[Logon]{Environment.NewLine}UseSSL=true");
+            }
         }
 
         private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent)
