@@ -706,21 +706,27 @@ public class WindowEventListener implements AWTEventListener {
                     else {
                         this.automater.logMessage("New login attempt with 2FA");
 
-                        int delay = 10000 * this.twoFactorConfirmationAttempts;
-
-                        // execute asynchronously on the AWT event dispatching thread
-                        SwingUtilities.invokeLater(() -> {
+                        new Thread(()-> {
                             try {
+                                int delay = 10000 * this.twoFactorConfirmationAttempts;
+
                                 // IB considers a 2FA timeout as a failed login attempt
                                 // so we wait before retrying to avoid the "Too many failed login attempts" error
                                 Thread.sleep(delay);
 
-                                Window mainWindow = automater.getMainWindow();
-                                HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                                // execute asynchronously on the AWT event dispatching thread
+                                SwingUtilities.invokeLater(() -> {
+                                    try {
+                                        Window mainWindow = automater.getMainWindow();
+                                        HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                                    } catch (Exception e) {
+                                        automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                                    }
+                                });
                             } catch (Exception e) {
                                 automater.logMessage("HandleLoginWindow error: " + e.getMessage());
                             }
-                        });
+                        }).start();
                     }
                 }
                 else {
