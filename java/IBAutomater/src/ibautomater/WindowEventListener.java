@@ -139,6 +139,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleDisplayMarketDataWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleUseSslEncryptionWindow(window, eventId)) {
+                return;
+            }
 
             HandleUnknownMessageWindow(window, eventId);
         }
@@ -202,6 +205,18 @@ public class WindowEventListener implements AWTEventListener {
             throw new Exception("IB API password text field not found");
         }
         passwordTextField.setText(this.automater.getSettings().getPassword());
+
+        String useSslText = "Use SSL";
+        JCheckBox useSslCheckbox = Common.getCheckBox(window, useSslText);
+        if (useSslCheckbox == null) {
+            this.automater.logMessage("Use SSL checkbox not found");
+        }
+        else {
+            if (!useSslCheckbox.isSelected()) {
+                this.automater.logMessage("Select checkbox: [" + useSslText + "]");
+                useSslCheckbox.setSelected(true);
+            }
+        }
 
         String loginButtonText = isLiveTradingMode ? "Log In" : "Paper Log In";
         JButton loginButton = Common.getButton(window, loginButtonText);
@@ -739,6 +754,28 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
+    private boolean HandleUseSslEncryptionWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.contains("Use SSL encryption")) {
+
+            String buttonText = "Reconnect using SSL";
+            JButton button = Common.getButton(window, buttonText);
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     private boolean IsKnownWindowTitle(String title) {
         if (title.equals("Second Factor Authentication") ||
             title.equals("Security Code Card Authentication") ||
@@ -926,6 +963,18 @@ public class WindowEventListener implements AWTEventListener {
             else if (component instanceof JTextPane)
             {
                 text = " - Text: [" + ((JTextPane) component).getText() + "]";
+            }
+            else if (component instanceof JTextField)
+            {
+                text = " - Text: [" + ((JTextField) component).getText() + "]";
+            }
+            else if (component instanceof JCheckBox)
+            {
+                text = " - Text: [" + ((JCheckBox) component).getText() + "]";
+            }
+            else if (component instanceof JOptionPane)
+            {
+                text = " - Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
             }
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
