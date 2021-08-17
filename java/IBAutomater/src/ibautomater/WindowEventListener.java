@@ -42,6 +42,7 @@ import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.TreePath;
 
 public class WindowEventListener implements AWTEventListener {
@@ -707,14 +708,23 @@ public class WindowEventListener implements AWTEventListener {
 
                         new Thread(()-> {
                             try {
+                                int delay = 10000 * this.twoFactorConfirmationAttempts;
+
                                 // IB considers a 2FA timeout as a failed login attempt
                                 // so we wait before retrying to avoid the "Too many failed login attempts" error
-                                Thread.sleep(10000 * this.twoFactorConfirmationAttempts);
+                                Thread.sleep(delay);
 
-                                Window mainWindow = this.automater.getMainWindow();
-                                HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                                // execute asynchronously on the AWT event dispatching thread
+                                SwingUtilities.invokeLater(() -> {
+                                    try {
+                                        Window mainWindow = automater.getMainWindow();
+                                        HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                                    } catch (Exception e) {
+                                        automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                                    }
+                                });
                             } catch (Exception e) {
-                                this.automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                                automater.logMessage("HandleLoginWindow error: " + e.getMessage());
                             }
                         }).start();
                     }
