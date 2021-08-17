@@ -42,6 +42,7 @@ import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.TreePath;
 
 public class WindowEventListener implements AWTEventListener {
@@ -705,18 +706,21 @@ public class WindowEventListener implements AWTEventListener {
                     else {
                         this.automater.logMessage("New login attempt with 2FA");
 
-                        new Thread(()-> {
+                        int delay = 10000 * this.twoFactorConfirmationAttempts;
+
+                        // execute asynchronously on the AWT event dispatching thread
+                        SwingUtilities.invokeLater(() -> {
                             try {
                                 // IB considers a 2FA timeout as a failed login attempt
                                 // so we wait before retrying to avoid the "Too many failed login attempts" error
-                                Thread.sleep(10000 * this.twoFactorConfirmationAttempts);
+                                Thread.sleep(delay);
 
-                                Window mainWindow = this.automater.getMainWindow();
+                                Window mainWindow = automater.getMainWindow();
                                 HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
                             } catch (Exception e) {
-                                this.automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                                automater.logMessage("HandleLoginWindow error: " + e.getMessage());
                             }
-                        }).start();
+                        });
                     }
                 }
                 else {
