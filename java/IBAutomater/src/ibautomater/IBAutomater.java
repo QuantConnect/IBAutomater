@@ -25,11 +25,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+/**
+ * IBAutomater is the component responsible for the interaction with the IBGateway user interface.
+ *
+ * @author QuantConnect Corporation
+ */
 public final class IBAutomater {
     private final Settings settings;
     private PrintWriter printWriter = null;
     private Window mainWindow;
 
+    /**
+     * The Java agent premain method is called before the IBGateway main method.
+     *
+     * @param args The name of a text file containing the values of the IBAutomater settings
+     */
     public static void premain(String args) throws Exception {
 
         String fileContent = new String(Files.readAllBytes(Paths.get(args)), StandardCharsets.UTF_8);
@@ -44,6 +54,16 @@ public final class IBAutomater {
         IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
     }
 
+    /**
+     * Creates a new instance of the {@link IBAutomater} class.
+     *
+     * @param userName The IB user name
+     * @param password The IB password
+     * @param tradingMode The trading mode (allowed values are "live" and "paper")
+     * @param portNumber The socket port number to be used for API connections
+     * @param exportIbGatewayLogs If true, IBGateway logs will be exported at predefined times
+     * (currently at startup and when unknown windows are detected)
+     */
     public IBAutomater(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
         this.settings = new Settings(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
 
@@ -61,6 +81,11 @@ public final class IBAutomater {
         this.logMessage("IBGateway started");
     }
 
+    /**
+     * Writes the text message to the log file.
+     *
+     * @param text The text message to be logged
+     */
     public void logMessage(String text) {
         try
         {
@@ -72,6 +97,11 @@ public final class IBAutomater {
         }
     }
 
+    /**
+     * Writes the exception message to the log file.
+     *
+     * @param exception The exception to be logged
+     */
     public void logError(Exception exception) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
@@ -80,14 +110,29 @@ public final class IBAutomater {
         this.logMessage("Error: " + sw.toString());
     }
 
+    /**
+     * Gets the IBGateway main window.
+     *
+     * @return Returns the IBGateway main window
+     */
     public Window getMainWindow() {
         return this.mainWindow;
     }
 
+    /**
+     * Sets the IBGateway main window.
+     *
+     * @param window The IBGateway main window
+     */
     public void setMainWindow(Window window) {
         this.mainWindow = window;
     }
 
+    /**
+     * Gets the IBAutomater settings.
+     *
+     * @return Returns the {@link Settings} instance
+     */
     public Settings getSettings() {
         return this.settings;
     }

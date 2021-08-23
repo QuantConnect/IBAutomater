@@ -15,6 +15,11 @@
 
 package ibautomater;
 
+/**
+ * Contains all settings required by IBAutomater.
+ * 
+ * @author QuantConnect Corporation
+*/
 public class Settings {
     private final String userName;
     private final String password;
@@ -22,6 +27,16 @@ public class Settings {
     private final int portNumber;
     private final boolean exportIbGatewayLogs;
 
+    /**
+     * Creates a new instance of the {@link Settings} class.
+     * 
+     * @param userName The IB user name
+     * @param password The IB password
+     * @param tradingMode The trading mode (allowed values are "live" and "paper")
+     * @param portNumber The socket port number to be used for API connections
+     * @param exportIbGatewayLogs If true, IBGateway logs will be exported at predefined times
+     * (currently at startup and when unknown windows are detected)
+     */
     public Settings(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
         this.userName = userName;
         this.password = password;
@@ -30,22 +45,47 @@ public class Settings {
         this.exportIbGatewayLogs = exportIbGatewayLogs;
     }
 
+    /**
+     * Gets the IB user name.
+     * 
+     * @return Returns the IB user name
+     */
     public String getUserName() {
         return this.userName;
     }
 
+    /**
+     * Gets the IB password.
+     * 
+     * @return Returns the IB password
+     */
     public String getPassword() {
         return this.password;
     }
 
+    /**
+     * Gets the trading mode ("live" for Real trading, "paper" for Paper trading).
+     * 
+     * @return Returns the trading mode
+     */
     public String getTradingMode() {
         return this.tradingMode;
     }
 
+    /**
+     * Gets the socket port number for API connections.
+     * 
+     * @return Returns the socket port number
+     */
     public int getPortNumber() {
         return this.portNumber;
     }
 
+    /**
+     * Gets whether IBGateway logs should be exported.
+     * 
+     * @return Returns true if IBGateway logs should be exported, false otherwise
+     */
     public boolean getExportIbGatewayLogs() {
         return this.exportIbGatewayLogs;
     }

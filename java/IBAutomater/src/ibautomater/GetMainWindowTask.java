@@ -19,13 +19,28 @@ import java.awt.Window;
 import java.util.concurrent.Callable;
 import javax.swing.JMenuItem;
 
+/**
+ * Handles the task of finding the IBGateway main window and waiting for it to be ready.
+ * 
+ * @author QuantConnect Corporation
+ */
 public class GetMainWindowTask implements Callable<Window> {
     private final IBAutomater automater;
 
+    /**
+     * Creates a new instance of the {@link GetMainWindowTask} class.
+     * 
+     * @param automater The {@link IBAutomater} instance
+     */
     GetMainWindowTask(IBAutomater automater) {
         this.automater = automater;
     }
 
+    /**
+     * Returns the IBGateway main window, or throws an exception if unable to do so.
+     *
+     * @return Returns the IBGateway main window
+     */
     @Override
     @SuppressWarnings("SleepWhileInLoop")
     public Window call() throws Exception {
@@ -37,6 +52,8 @@ public class GetMainWindowTask implements Callable<Window> {
                 if (menuItem != null) {
                     this.automater.logMessage("Found main window (Window title: [" + Common.getTitle(w) + "] - Window name: [" + w.getName() + "])");
 
+                    // when the main window is found and is ready,
+                    // save it for future use and open the configuration window
                     this.automater.setMainWindow(w);
                     menuItem.doClick();
 
