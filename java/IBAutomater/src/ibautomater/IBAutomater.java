@@ -20,6 +20,7 @@ import java.awt.Window;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -71,12 +72,12 @@ public final class IBAutomater {
         }
     }
 
-    public void logError(String text) {
-        this.logMessage("Error: " + text);
-    }
-
     public void logError(Exception exception) {
-        this.logError(exception.getMessage());
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        exception.printStackTrace(pw);
+
+        this.logMessage("Error: " + sw.toString());
     }
 
     public Window getMainWindow() {

@@ -147,7 +147,7 @@ public class WindowEventListener implements AWTEventListener {
             HandleUnknownMessageWindow(window, eventId);
         }
         catch (Exception e) {
-            this.automater.logError(e.toString());
+            this.automater.logError(e);
         }
     }
 
@@ -304,7 +304,7 @@ public class WindowEventListener implements AWTEventListener {
                 try {
                     future.get(30, TimeUnit.SECONDS);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    this.automater.logError(e.toString());
+                    this.automater.logError(e);
                 }
                 executor.shutdown();
             }).start();
@@ -787,6 +787,10 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     private boolean IsKnownWindowTitle(String title) {
+        if (title == null) {
+            return false;
+        }
+
         if (title.equals("Second Factor Authentication") ||
             title.equals("Security Code Card Authentication") ||
             title.equals("Enter security code")) {
