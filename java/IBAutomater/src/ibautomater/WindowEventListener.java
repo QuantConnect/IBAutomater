@@ -21,8 +21,15 @@ import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import static java.time.temporal.TemporalAdjusters.next;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -84,6 +91,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleLoginFailedWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleServerDisconnectedWindow(window, eventId)) {
                 return;
             }
             if (this.HandlePasswordNoticeWindow(window, eventId)) {
@@ -251,6 +261,55 @@ public class WindowEventListener implements AWTEventListener {
             if (button != null) {
                 this.automater.logMessage("Click button: [OK]");
                 button.doClick();
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleServerDisconnectedWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String text = GetWindowText(window);
+
+        if (text != null && text.contains("Connection to server failed: Server disconnected, please try again")) {
+            this.automater.logMessage(text);
+
+            if (IsWithinWeekendServerResetTimes())
+            {
+                this.automater.logMessage("Server disconnection detected during weekend server reset times, delaying the reconnection attempt.");
+
+                // start thread to wait until one hour before FX market open before retrying login
+                new Thread(()-> {
+                    try {
+                        Duration delta = Duration.between(Instant.now(), GetNextWeekendReconnectionTimeUtc());
+                        long delay = delta.getSeconds() * 1000;
+
+                        Thread.sleep(delay);
+
+                        // execute asynchronously on the AWT event dispatching thread
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                JButton button = Common.getButton(window, "OK");
+                                if (button != null) {
+                                    this.automater.logMessage("Click button: [OK]");
+                                    button.doClick();
+                                }
+
+                                Window mainWindow = automater.getMainWindow();
+                                HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                            } catch (Exception e) {
+                                automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                            }
+                        });
+                    } catch (Exception e) {
+                        automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                    }
+                }).start();
             }
 
             return true;
@@ -1006,6 +1065,38 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Gateway Logs menu not found.");
             }
         }
+    }
+
+    private boolean IsWithinWeekendServerResetTimes()
+    {
+        boolean result = false;
+
+        Instant utcTime = Instant.now();
+        ZonedDateTime time = utcTime.atZone(ZoneId.of("America/New_York"));
+        LocalTime timeOfDay = time.toLocalTime();
+
+        // Note: we add 15 minutes *before* and *after* all time ranges for safety margin
+        // During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
+        if (time.getDayOfWeek() == DayOfWeek.FRIDAY && timeOfDay.isAfter(LocalTime.of(22, 45, 0)) ||
+            // Occasionally the disconnection due to the IB reset period might last
+            // much longer than expected during weekends so we include all Saturday.
+            time.getDayOfWeek() == DayOfWeek.SATURDAY)
+        {
+            // Friday: 23:00 - 03:00 ET for all regions
+            result = true;
+        }
+
+        return result;
+    }
+
+    private Instant GetNextWeekendReconnectionTimeUtc() {
+        // return the UTC time at one hour before Sunday FX market open,
+        // ignoring holidays as we should be able to connect with closed markets anyway
+        return LocalDate.now()
+                .with(next(DayOfWeek.SUNDAY))
+                .atTime(16, 0, 0)
+                .atZone(ZoneId.of("America/New_York"))
+                .toInstant();
     }
 }
 
