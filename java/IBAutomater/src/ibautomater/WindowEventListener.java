@@ -25,7 +25,6 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -94,6 +93,9 @@ public class WindowEventListener implements AWTEventListener {
                 return;
             }
             if (this.HandleServerDisconnectedWindow(window, eventId)) {
+                return;
+            }
+            if (this.HandleTooManyFailedLoginAttemptsWindow(window, eventId)) {
                 return;
             }
             if (this.HandlePasswordNoticeWindow(window, eventId)) {
@@ -311,6 +313,61 @@ public class WindowEventListener implements AWTEventListener {
                     }
                 }).start();
             }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean HandleTooManyFailedLoginAttemptsWindow(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String text = GetWindowText(window);
+
+        if (text != null && text.contains("Too many failed login attempts")) {
+            this.automater.logMessage(text);
+
+            new Thread(()-> {
+                try {
+                    if (IsWithinWeekendServerResetTimes())
+                    {
+                        automater.logMessage("Too many failed login attempts during weekend server reset times, delaying the reconnection attempt.");
+
+                        // wait until one hour before FX market open before retrying login
+                        Duration delta = Duration.between(Instant.now(), GetNextWeekendReconnectionTimeUtc());
+                        long delay = delta.getSeconds() * 1000;
+                        Thread.sleep(delay);
+                    }
+                    else {
+                        automater.logMessage("Too many failed login attempts, delaying the reconnection attempt.");
+
+                        // wait a minute
+                        long delay = 60 * 1000;
+                        Thread.sleep(delay);
+                    }
+
+                    // execute asynchronously on the AWT event dispatching thread
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            JButton button = Common.getButton(window, "OK");
+                            if (button != null) {
+                                this.automater.logMessage("Click button: [OK]");
+                                button.doClick();
+                            }
+
+                            Window mainWindow = automater.getMainWindow();
+                            HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                        } catch (Exception e) {
+                            automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                        }
+                    });
+                } catch (Exception e) {
+                    automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                }
+            }).start();
 
             return true;
         }
