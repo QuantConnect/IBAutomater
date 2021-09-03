@@ -46,6 +46,8 @@ namespace QuantConnect.IBAutomater
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
         private bool _isRestartInProgress;
+        private bool _isFirstStart = true;
+        private volatile bool _isAuthenticating;
 
         private enum Region { America, Europe, Asia }
 
@@ -329,9 +331,18 @@ namespace QuantConnect.IBAutomater
                     {
                         TraceIbLauncherLogFile();
 
-                        _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                        var additionalMessage = string.Empty;
+                        if (_isFirstStart && _isAuthenticating)
+                        {
+                            // unable to complete logon because IB weekend server reset is in progress
+                            additionalMessage = "The logon process could not be completed because the IB server is busy or being reset for the weekend, please try again later.";
+                        }
+
+                        _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, additionalMessage);
                         message = "IB Automater initialization timeout.";
                     }
+
+                    _isFirstStart = false;
 
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
 
@@ -505,6 +516,12 @@ namespace QuantConnect.IBAutomater
                 {
                     _isRestartInProgress = false;
                     _ibAutomaterInitializeEvent.Set();
+                }
+
+                // authentication in progress
+                if (text.Contains("Window event:"))
+                {
+                    _isAuthenticating = text.Contains("Authenticating...");
                 }
             }
         }
