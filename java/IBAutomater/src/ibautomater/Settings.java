@@ -17,7 +17,7 @@ package ibautomater;
 
 /**
  * Contains all settings required by IBAutomater.
- * 
+ *
  * @author QuantConnect Corporation
 */
 public class Settings {
@@ -29,7 +29,7 @@ public class Settings {
 
     /**
      * Creates a new instance of the {@link Settings} class.
-     * 
+     *
      * @param userName The IB user name
      * @param password The IB password
      * @param tradingMode The trading mode (allowed values are "live" and "paper")
@@ -47,7 +47,7 @@ public class Settings {
 
     /**
      * Gets the IB user name.
-     * 
+     *
      * @return Returns the IB user name
      */
     public String getUserName() {
@@ -56,7 +56,7 @@ public class Settings {
 
     /**
      * Gets the IB password.
-     * 
+     *
      * @return Returns the IB password
      */
     public String getPassword() {
@@ -65,7 +65,7 @@ public class Settings {
 
     /**
      * Gets the trading mode ("live" for Real trading, "paper" for Paper trading).
-     * 
+     *
      * @return Returns the trading mode
      */
     public String getTradingMode() {
@@ -74,7 +74,7 @@ public class Settings {
 
     /**
      * Gets the socket port number for API connections.
-     * 
+     *
      * @return Returns the socket port number
      */
     public int getPortNumber() {
@@ -83,7 +83,7 @@ public class Settings {
 
     /**
      * Gets whether IBGateway logs should be exported.
-     * 
+     *
      * @return Returns true if IBGateway logs should be exported, false otherwise
      */
     public boolean getExportIbGatewayLogs() {

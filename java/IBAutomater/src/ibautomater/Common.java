@@ -40,16 +40,16 @@ import javax.swing.tree.TreePath;
 
 /**
  * Contains various helper functions.
- * 
+ *
  * @author QuantConnect Corporation
  */
 public class Common {
 
     /**
      * Gets whether the window is a Frame window.
-     * 
+     *
      * @param window The window to be checked
-     * 
+     *
      * @return Returns true if the window is a Frame window, false otherwise
      */
     public static boolean isFrame(Window window) {
@@ -58,9 +58,9 @@ public class Common {
 
     /**
      * Gets whether the window is a Dialog window.
-     * 
+     *
      * @param window The window to be checked
-     * 
+     *
      * @return Returns true if the window is a Dialog window, false otherwise
      */
     public static boolean isDialog(Window window) {
@@ -69,9 +69,9 @@ public class Common {
 
     /**
      * Gets the title of the window.
-     * 
+     *
      * @param window The window to be queried
-     * 
+     *
      * @return Returns the title of the window
      */
     public static String getTitle(Window window) {
@@ -86,10 +86,10 @@ public class Common {
 
     /**
      * Gets a JButton instance with the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The button text to find
-     * 
+     *
      * @return Returns a JButton instance in the given container with the specified text, null if the button is not found
      */
     public static JButton getButton(Container container, String text) {
@@ -106,10 +106,10 @@ public class Common {
 
     /**
      * Gets a JToggleButton instance with the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The toggle button text to find
-     * 
+     *
      * @return Returns a JToggleButton instance in the given container with the specified text, null if the toggle button is not found
      */
     public static JToggleButton getToggleButton(Container container, String text) {
@@ -126,10 +126,10 @@ public class Common {
 
     /**
      * Gets a JRadioButton instance with the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The radio button text to find
-     * 
+     *
      * @return Returns a JRadioButton instance in the given container with the specified text, null if the radio button is not found
      */
     public static JRadioButton getRadioButton(Container container, String text) {
@@ -146,10 +146,10 @@ public class Common {
 
     /**
      * Gets a JLabel instance containing the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The label text to find
-     * 
+     *
      * @return Returns a JLabel instance in the given container containing the specified text, null if the label is not found
      */
     public static JLabel getLabel(Container container, String text) {
@@ -166,10 +166,10 @@ public class Common {
 
     /**
      * Gets a JOptionPane instance containing the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The option pane text to find
-     * 
+     *
      * @return Returns a JOptionPane instance in the given container containing the specified text, null if the option pane is not found
      */
     public static JOptionPane getOptionPane(Container container, String text) {
@@ -186,10 +186,10 @@ public class Common {
 
     /**
      * Gets a JTextField instance at the specified position in the container.
-     * 
+     *
      * @param container The container to be queried
      * @param index The index of the text field to return
-     * 
+     *
      * @return Returns a JTextField instance at the specified position in the list of text fields in the container, null if the index is not valid
      */
     public static JTextField getTextField(Container container, int index) {
@@ -200,11 +200,11 @@ public class Common {
 
     /**
      * Gets a JMenuItem instance in the container with the specified menu item text in the menu with the specified menu text.
-     * 
+     *
      * @param container The container to be queried
      * @param menuText The menu item text to find
      * @param menuItemText The menu text to find
-     * 
+     *
      * @return Returns a JMenuItem instance in the given container with the specified text, null if the menu item is not found
      */
     public static JMenuItem getMenuItem(Container container, String menuText, String menuItemText) {
@@ -225,10 +225,10 @@ public class Common {
 
     /**
      * Gets a JCheckBox instance with the specified text.
-     * 
+     *
      * @param container The container to be queried
      * @param text The check box text to find
-     * 
+     *
      * @return Returns a JCheckBox instance in the given container with the specified text, null if the check box is not found
      */
     public static JCheckBox getCheckBox(Container container, String text) {
@@ -245,9 +245,9 @@ public class Common {
 
     /**
      * Gets the first JTextPane instance in the container.
-     * 
+     *
      * @param container The container to be queried
-     * 
+     *
      * @return Returns the first JTextPane instance in the given container, null if the text pane is not found
      */
     public static JTextPane getTextPane(Container container) {
@@ -258,9 +258,9 @@ public class Common {
 
     /**
      * Gets a list of label text lines in the container.
-     * 
+     *
      * @param container The container to be queried
-     * 
+     *
      * @return Returns a list of label text lines found in the given container
      */
     public static List<String> getLabelTextLines(Container container) {
@@ -281,9 +281,9 @@ public class Common {
 
     /**
      * Gets the first JTree instance in the container.
-     * 
+     *
      * @param container The container to be queried
-     * 
+     *
      * @return Returns the first JTree instance in the given container, null if the tree is not found
      */
     public static JTree getTree(Container container) {
@@ -294,10 +294,10 @@ public class Common {
 
     /**
      * Selects the tree node in the given tree with the specified tree path.
-     * 
+     *
      * @param tree The tree for which the node is to be selected
      * @param path The tree path for the tree node to be selected
-     * 
+     *
      * @return Returns false
      */
     public static boolean selectTreeNode(JTree tree, TreePath path) {
@@ -308,11 +308,11 @@ public class Common {
 
     /**
      * Selects the tree node in the given tree with the specified tree path.
-     * 
+     *
      * @param tree The tree for which the node is to be selected
      * @param parentNode The parent node for the tree node to be selected
      * @param path The tree path for the tree node to be selected
-     * 
+     *
      * @return Returns true if the tree node was selected, false otherwise
      */
     private static boolean selectNode(JTree tree, DefaultMutableTreeNode parentNode, TreePath path) {
@@ -331,7 +331,7 @@ public class Common {
 
     /**
      * Recursively loads components of the specified type in the given container into the specified list.
-     * 
+     *
      * @param container The container to be queried
      * @param type The type of the components to be loaded
      * @param components The list to be loaded with the components
@@ -349,7 +349,7 @@ public class Common {
 
     /**
      * Recursively loads all components in the given container into the specified list.
-     * 
+     *
      * @param container The container to be queried
      * @param components The list to be loaded with the components
      */
@@ -364,9 +364,9 @@ public class Common {
 
     /**
      * Recursively gets all components in the given container.
-     * 
+     *
      * @param container The container to be queried
-     * 
+     *
      * @return Returns a list of all components contained in the given container
      */
     public static List<Component> getComponents(Container container) {

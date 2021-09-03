@@ -21,7 +21,7 @@ import javax.swing.JMenuItem;
 
 /**
  * Handles the task of finding the IBGateway main window and waiting for it to be ready.
- * 
+ *
  * @author QuantConnect Corporation
  */
 public class GetMainWindowTask implements Callable<Window> {
@@ -29,7 +29,7 @@ public class GetMainWindowTask implements Callable<Window> {
 
     /**
      * Creates a new instance of the {@link GetMainWindowTask} class.
-     * 
+     *
      * @param automater The {@link IBAutomater} instance
      */
     GetMainWindowTask(IBAutomater automater) {

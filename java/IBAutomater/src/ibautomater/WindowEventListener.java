@@ -53,7 +53,7 @@ import javax.swing.tree.TreePath;
 
 /**
  * The event listener implementation handles the detection and handling of known and supported IBGateway windows.
- * 
+ *
  * @author QuantConnect Corporation
  */
 public class WindowEventListener implements AWTEventListener {
@@ -76,7 +76,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
-     * 
+     *
      * @param automater The {@link IBAutomater} instance
      */
     WindowEventListener(IBAutomater automater) {
@@ -85,7 +85,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Invoked when an event is dispatched in the AWT.
-     * 
+     *
      * @param awtEvent The event to be processed
      */
     @Override
@@ -185,10 +185,10 @@ public class WindowEventListener implements AWTEventListener {
      * - enters the IB user name and password
      * - selects the "Use SSL" check box
      * - clicks the "Log In" or "Paper Log In" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleLoginWindow(Window window, int eventId) throws Exception {
@@ -275,10 +275,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the login failed window.
      * - logs the error message text
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleLoginFailedWindow(Window window, int eventId) {
@@ -309,6 +309,18 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
+    /**
+     * Detects and handles the Server Disconnected window.
+     * Only if we are during an IB weekend reset period, a new task will be started:
+     * - waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone)
+     * - clicks the "OK" button
+     * - repeats the login process
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
     private boolean HandleServerDisconnectedWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
@@ -358,6 +370,20 @@ public class WindowEventListener implements AWTEventListener {
         return false;
     }
 
+    /**
+     * Detects and handles the "Too many failed login attempts" window.
+     * A new task will be started:
+     * - if we are during an IB weekend reset period,
+     *   waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone),
+     *   else waits one minute
+     * - clicks the "OK" button
+     * - repeats the login process
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
     private boolean HandleTooManyFailedLoginAttemptsWindow(Window window, int eventId) {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
@@ -417,10 +443,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the Password Notice window.
      * - logs the error message text
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandlePasswordNoticeWindow(Window window, int eventId) {
@@ -454,10 +480,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Initialization window.
      * - starts the {@link GetMainWindowTask} task to find the main window
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleInitializationWindow(Window window, int eventId) {
@@ -489,10 +515,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Paper Trading warning window.
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandlePaperTradingAccountWindow(Window window, int eventId) throws Exception {
@@ -522,10 +548,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the Unsupported Version window.
      * - logs the error message text
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleUnsupportedVersionWindow(Window window, int eventId) throws Exception {
@@ -573,10 +599,10 @@ public class WindowEventListener implements AWTEventListener {
      *   - selects the "Auto restart" check box
      * - if requested, opens the Export IB logs window
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleConfigurationWindow(Window window, int eventId) throws Exception {
@@ -677,10 +703,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Existing Session Detected window.
      * - clicks the "Exit Application" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleExistingSessionDetectedWindow(Window window, int eventId) throws Exception {
@@ -711,10 +737,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Re-login Required window.
      * - clicks the "Re-login" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleReloginRequiredWindow(Window window, int eventId) throws Exception {
@@ -745,10 +771,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Financial Advisor warning window.
      * - clicks the "Yes" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) throws Exception {
@@ -779,10 +805,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Exit Session Setting window.
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleExitSessionSettingWindow(Window window, int eventId) throws Exception {
@@ -816,10 +842,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the API support not available window (e.g. for IBKR Lite accounts).
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleApiNotAvailableWindow(Window window, int eventId) {
@@ -858,10 +884,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the AutoRestart confirmation window.
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleEnableAutoRestartConfirmationWindow(Window window, int eventId) {
@@ -895,10 +921,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the AutoRestart Token Expired window.
      * - clicks the "OK" button
      * - closes the main window
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleAutoRestartTokenExpiredWindow(Window window, int eventId) throws Exception {
@@ -937,10 +963,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the AutoRestart Now window.
      * - clicks the "No" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleAutoRestartNowWindow(Window window, int eventId) throws Exception {
@@ -970,10 +996,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the Two Factor Authentication window.
      * - if the window is closed within 150 seconds since it was opened, 2FA confirmation was successful,
      * otherwise it is considered a timeout and other two attempts to login are performed
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleTwoFactorAuthenticationWindow(Window window, int eventId) throws Exception {
@@ -1037,10 +1063,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Display Market Data window.
      * - clicks the "I understand - display market data" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleDisplayMarketDataWindow(Window window, int eventId) throws Exception {
@@ -1070,10 +1096,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Use SSL Encryption window.
      * - clicks the "Reconnect using SSL" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleUseSslEncryptionWindow(Window window, int eventId) {
@@ -1100,9 +1126,9 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Returns whether the given window title is known.
-     * 
+     *
      * @param title The window title
-     * 
+     *
      * @return Returns true if the window title is known, false otherwise
      */
     private boolean IsKnownWindowTitle(String title) {
@@ -1121,9 +1147,9 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Gets the text content of the window (labels and text panes only).
-     * 
+     *
      * @param window The window instance
-     * 
+     *
      * @return Returns the text content of the window
      */
     private String GetWindowText(Window window) {
@@ -1145,10 +1171,10 @@ public class WindowEventListener implements AWTEventListener {
      * - if requested, opens the Export IB logs window
      * - logs the window structure
      * - clicks the "OK" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleUnknownMessageWindow(Window window, int eventId) {
@@ -1188,10 +1214,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the View Logs window.
      * - clicks the "Export Today Logs..." button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleViewLogsWindow(Window window, int eventId) {
@@ -1230,10 +1256,10 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Enter Export Filename window.
      * - clicks the "Open" button
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleExportFileNameWindow(Window window, int eventId) {
@@ -1262,10 +1288,10 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the Export Finished window.
      * - clicks the "OK" button
      * - clicks the "Cancel" button on the parent window (View Logs)
-     * 
+     *
      * @param window The window instance
      * @param eventId The id of the window event
-     * 
+     *
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleExportFinishedWindow(Window window, int eventId) throws Exception {
@@ -1333,7 +1359,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Logs the structure of the specified window.
-     * 
+     *
      * @param window The window instance
      */
     private void LogWindowContents(Window window) {
@@ -1384,6 +1410,11 @@ public class WindowEventListener implements AWTEventListener {
         }
     }
 
+    /**
+     * Gets whether the current time is within the IB weekend server reset period.
+     *
+     * @return Returns true if the current time is within the IB weekend server reset period, false otherwise
+     */
     private boolean IsWithinWeekendServerResetTimes()
     {
         boolean result = false;
@@ -1406,6 +1437,11 @@ public class WindowEventListener implements AWTEventListener {
         return result;
     }
 
+    /**
+     * Gets the time (UTC) of the next reconnection attempt.
+     *
+     * @return Returns the time (UTC) of the next reconnection attempt
+     */
     private Instant GetNextWeekendReconnectionTimeUtc() {
         // return the UTC time at one hour before Sunday FX market open,
         // ignoring holidays as we should be able to connect with closed markets anyway
