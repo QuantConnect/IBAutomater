@@ -47,7 +47,7 @@ namespace QuantConnect.IBAutomater
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
         private bool _isRestartInProgress;
         private bool _isFirstStart = true;
-        private bool _isAuthenticating;
+        private volatile bool _isAuthenticating;
 
         private enum Region { America, Europe, Asia }
 
@@ -342,6 +342,8 @@ namespace QuantConnect.IBAutomater
                         message = "IB Automater initialization timeout.";
                     }
 
+                    _isFirstStart = false;
+
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
 
                     if (_lastStartResult.HasError)
@@ -351,8 +353,6 @@ namespace QuantConnect.IBAutomater
 
                         return _lastStartResult;
                     }
-
-                    _isFirstStart = false;
                 }
             }
 
