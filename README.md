@@ -166,6 +166,16 @@ private void CheckIbAutomaterError(StartResult result)
 }
 ```
 
+## IB weekend/maintenance periods
+
+According to the [IB documentation](https://www.interactivebrokers.com/en/index.php?f=2225), 
+the IB weekend reset times should start on Friday at 23:00 ET and should last four hours, 
+but sometimes the maintenance lasts more and during this period the IB Gateway is unable to complete a Login operation.
+
+For this reason IBAutomater detects failed login attempts during this period 
+and delays further connection attempts until the next Sunday at 4:00 PM ET 
+(one hour before Forex markets open), when we expect to be able to login successfully.
+
 ## Two-factor authentication (2FA)
 
 The only 2FA method supported by IBAutomater is the IBKR mobile application with seamless authentication enabled.
