@@ -34,16 +34,16 @@ _ibAutomater.OutputDataReceived += OnIbAutomaterOutputDataReceived;
 // Gracefully handle errors
 _ibAutomater.ErrorDataReceived += OnIbAutomaterErrorDataReceived;
 
-// Get events once the IBGateway has exited.
+// Get events once the IB Gateway has exited.
 _ibAutomater.Exited += OnIbAutomaterExited;
 
-// Get events once the IBGateway has auto-restarted.
+// Get events once the IB Gateway has auto-restarted.
 _ibAutomater.Restarted += OnIbAutomaterRestarted;
 
-// Trigger the IBGateway to start and login with your configured parameters.
+// Trigger the IB Gateway to start and login with your configured parameters.
 _ibAutomater.Start(false);
 
-// Stop IBGateway with a simple command.
+// Stop IB Gateway with a simple command.
 _ibAutomater.Stop();
 ```
 
@@ -53,10 +53,10 @@ IBAutomater has been implemented as two components:
 
 1. a Java component (.jar file)
 
-    The IBAutomater.jar file is loaded as a Java agent into IB Gateway process with the following advantages:
+    The IBAutomater.jar file is loaded as a Java agent into the IB Gateway process with the following advantages:
     
-    - remove the requirement of installing Java separately as IBGateway uses a bundled version of the Java runtime
-    - avoid dependencies on IB Gateway jar libraries
+    - remove the requirement of installing Java separately as IB Gateway uses a bundled version of the Java runtime
+    - avoid dependencies on the IB Gateway jar libraries
     - allow us to handle auto-restarts requiring full authentication only weekly (instead of daily)
 
     More information on the Java Instrumentation API can be found [here](https://docs.oracle.com/javase/8/docs/api/java/lang/instrument/package-summary.html)
@@ -64,16 +64,128 @@ IBAutomater has been implemented as two components:
     This component is responsible for interacting with the IB Gateway user interface, performing the following tasks:
 
     - entering login credentials
-    - configuring IBGateway settings
+    - configuring IB Gateway settings
     - dismissing message and confirmation windows
   
 2. a C# component (.dll file), .NET assembly built for both NET Standard 2.0 and NET 5.0
 
     This component takes care of the following tasks:
 
-    - starting and stopping IBGateway
+    - starting and stopping the IB Gateway
     - notifying the client application of any error conditions
-    - firing events such as Exited and Restarted
+    - firing events such as `Exited` and `Restarted`
+
+## IB Gateway auto-restarts
+
+As the IB Gateway requires a daily shutdown (or restart), 
+IBAutomater always selects auto-restart instead of auto-logoff 
+because it allows users with 2FA enabled to authenticate only once per week instead of each day.
+
+IBAutomater handles the detection of auto-restarts and notifies the client application with events.
+These are the two events that have to be handled by the client:
+1. `Restarted` - The IB Gateway was auto-restarted with no authentication required (soft restart),
+this happens every day at the configured auto-restart time.
+
+> For now IBAutomater does not set the auto-restart time 
+(the default time is 11:45 PM, in the system timezone), 
+but this setting might be configurable in future versions. 
+
+2. `Exited` - The IB Gateway was closed by IBAutomater (because full authentication is required or there was an error)
+and the client application is responsible for 
+restarting the IB Gateway via the `Start()` method.
+
+###### Example auto-restart event handling code
+
+``` C#
+
+private void OnIbAutomaterExited(object sender, ExitedEventArgs e)
+{
+    // check if IB Gateway was closed because of an IBAutomater error
+    var result = _ibAutomater.GetLastStartResult();
+    CheckIbAutomaterError(result);
+
+    if (!result.HasError)
+    {
+        // IB Gateway was closed by IBAutomater because the auto-restart token expired or it was closed manually (less likely)
+        Console.WriteLine("OnIbAutomaterExited(): IB Gateway close detected, restarting IBAutomater in 10 seconds...");
+
+        // Wait a few seconds for IB Gateway to shutdown
+        Thread.Sleep(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            // Close the client API connection
+            Disconnect();
+
+            // Restart IB Gateway
+            CheckIbAutomaterError(_ibAutomater.Start(false));
+
+            // Open the client API connection
+            Connect();
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"OnIbAutomaterExited(): IBAutomaterRestartError - {exception}");
+        }
+    }
+}
+
+private void OnIbAutomaterRestarted(object sender, EventArgs e)
+{
+    // check if IB Gateway was closed because of an IBAutomater error
+    var result = _ibAutomater.GetLastStartResult();
+    CheckIbAutomaterError(result);
+
+    if (!result.HasError)
+    {
+        // IB Gateway was restarted automatically
+        Console.WriteLine("OnIbAutomaterRestarted(): IB Gateway restart detected, reconnecting...");
+
+        try
+        {
+            // Close the client API connection
+            Disconnect();
+
+            // Open the client API connection
+            Connect();
+        }
+        catch (Exception exception)
+        {
+            Console.WriteLine($"OnIbAutomaterRestarted(): IBAutomaterAutoRestartError - {exception}");
+        }
+    }
+}
+
+private void CheckIbAutomaterError(StartResult result)
+{
+    if (result.HasError)
+    {
+        // notify the user that an IBAutomater error has occurred
+        Console.WriteLine($"CheckIbAutomaterError(): {result.ErrorCode} - {result.ErrorMessage}");
+    }
+}
+```
+
+## Two-factor authentication (2FA)
+
+The only 2FA method supported by IBAutomater is the IBKR mobile application with seamless authentication enabled.
+
+The 2FA request will only be sent to the phone when logging in for the first time at startup and once per week after the weekly auto-restart.
+
+When this method is selected, IB Gateway shows a 2FA popup window (after the user/password credentials have been validated)
+and waits for the user to complete the authentication by entering the PIN on the phone.
+
+If the PIN is correct, the popup window will automatically close and both IB Gateway and IBAutomater will proceed normally.
+
+If the PIN is incorrect (or the user does not send a PIN within 3 minutes) the window will automatically close/reopen 
+and IB Gateway will send another 2FA request to the phone.
+
+After three failed attempts, IBAutomater will be terminated and 
+show the following error message:
+```
+The two factor authentication request timed out. 
+The request must be confirmed within 3 minutes.
+```
 
 ## How to build
 
