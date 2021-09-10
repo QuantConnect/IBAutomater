@@ -311,8 +311,10 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Server Disconnected window.
-     * Only if we are during an IB weekend reset period, a new task will be started:
-     * - waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone)
+     * A new task will be started:
+     * - if we are during an IB weekend reset period,
+     *   waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone),
+     *   else waits five minutes
      * - clicks the "OK" button
      * - repeats the login process
      *
@@ -331,38 +333,43 @@ public class WindowEventListener implements AWTEventListener {
         if (text != null && text.contains("Connection to server failed: Server disconnected, please try again")) {
             this.automater.logMessage(text);
 
-            if (IsWithinWeekendServerResetTimes())
-            {
-                this.automater.logMessage("Server disconnection detected during weekend server reset times, delaying the reconnection attempt.");
+            new Thread(()-> {
+                try {
+                    if (IsWithinWeekendServerResetTimes()) {
+                        automater.logMessage("Server disconnection detected during weekend server reset times, delaying the reconnection attempt.");
 
-                // start thread to wait until one hour before FX market open before retrying login
-                new Thread(()-> {
-                    try {
+                        // wait until one hour before FX market open before retrying login
                         Duration delta = Duration.between(Instant.now(), GetNextWeekendReconnectionTimeUtc());
                         long delay = delta.getSeconds() * 1000;
-
                         Thread.sleep(delay);
-
-                        // execute asynchronously on the AWT event dispatching thread
-                        SwingUtilities.invokeLater(() -> {
-                            try {
-                                JButton button = Common.getButton(window, "OK");
-                                if (button != null) {
-                                    this.automater.logMessage("Click button: [OK]");
-                                    button.doClick();
-                                }
-
-                                Window mainWindow = automater.getMainWindow();
-                                HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
-                            } catch (Exception e) {
-                                automater.logMessage("HandleLoginWindow error: " + e.getMessage());
-                            }
-                        });
-                    } catch (Exception e) {
-                        automater.logMessage("HandleLoginWindow error: " + e.getMessage());
                     }
-                }).start();
-            }
+                    else {
+                        automater.logMessage("Server disconnection detected, delaying the reconnection attempt.");
+
+                        // wait 5 minutes
+                        long delay = 5 * 60 * 1000;
+                        Thread.sleep(delay);
+                    }
+
+                    // execute asynchronously on the AWT event dispatching thread
+                    SwingUtilities.invokeLater(() -> {
+                        try {
+                            JButton button = Common.getButton(window, "OK");
+                            if (button != null) {
+                                this.automater.logMessage("Click button: [OK]");
+                                button.doClick();
+                            }
+
+                            Window mainWindow = automater.getMainWindow();
+                            HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
+                        } catch (Exception e) {
+                            automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                        }
+                    });
+                } catch (Exception e) {
+                    automater.logMessage("HandleLoginWindow error: " + e.getMessage());
+                }
+            }).start();
 
             return true;
         }
