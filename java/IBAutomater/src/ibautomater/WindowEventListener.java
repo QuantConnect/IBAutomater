@@ -311,12 +311,8 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Server Disconnected window.
-     * A new task will be started:
-     * - if we are during an IB weekend reset period,
-     *   waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone),
-     *   else waits five minutes
      * - clicks the "OK" button
-     * - repeats the login process
+     * - closes the main window
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -333,43 +329,15 @@ public class WindowEventListener implements AWTEventListener {
         if (text != null && text.contains("Connection to server failed: Server disconnected, please try again")) {
             this.automater.logMessage(text);
 
-            new Thread(()-> {
-                try {
-                    if (IsWithinWeekendServerResetTimes()) {
-                        automater.logMessage("Server disconnection detected during weekend server reset times, delaying the reconnection attempt.");
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
+            }
 
-                        // wait until one hour before FX market open before retrying login
-                        Duration delta = Duration.between(Instant.now(), GetNextWeekendReconnectionTimeUtc());
-                        long delay = delta.getSeconds() * 1000;
-                        Thread.sleep(delay);
-                    }
-                    else {
-                        automater.logMessage("Server disconnection detected, delaying the reconnection attempt.");
+            this.automater.logMessage("Server disconnection detected, closing IBGateway.");
 
-                        // wait 5 minutes
-                        long delay = 5 * 60 * 1000;
-                        Thread.sleep(delay);
-                    }
-
-                    // execute asynchronously on the AWT event dispatching thread
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            JButton button = Common.getButton(window, "OK");
-                            if (button != null) {
-                                this.automater.logMessage("Click button: [OK]");
-                                button.doClick();
-                            }
-
-                            Window mainWindow = automater.getMainWindow();
-                            HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
-                        } catch (Exception e) {
-                            automater.logMessage("HandleLoginWindow error: " + e.getMessage());
-                        }
-                    });
-                } catch (Exception e) {
-                    automater.logMessage("HandleLoginWindow error: " + e.getMessage());
-                }
-            }).start();
+            CloseMainWindow();
 
             return true;
         }
@@ -379,12 +347,8 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the "Too many failed login attempts" window.
-     * A new task will be started:
-     * - if we are during an IB weekend reset period,
-     *   waits until one hour before the next Forex market open (Sunday 16:00 PM NewYork timezone),
-     *   else waits one minute
      * - clicks the "OK" button
-     * - repeats the login process
+     * - closes the main window
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -401,44 +365,15 @@ public class WindowEventListener implements AWTEventListener {
         if (text != null && text.contains("Too many failed login attempts")) {
             this.automater.logMessage(text);
 
-            new Thread(()-> {
-                try {
-                    if (IsWithinWeekendServerResetTimes())
-                    {
-                        automater.logMessage("Too many failed login attempts during weekend server reset times, delaying the reconnection attempt.");
+            JButton button = Common.getButton(window, "OK");
+            if (button != null) {
+                this.automater.logMessage("Click button: [OK]");
+                button.doClick();
+            }
 
-                        // wait until one hour before FX market open before retrying login
-                        Duration delta = Duration.between(Instant.now(), GetNextWeekendReconnectionTimeUtc());
-                        long delay = delta.getSeconds() * 1000;
-                        Thread.sleep(delay);
-                    }
-                    else {
-                        automater.logMessage("Too many failed login attempts, delaying the reconnection attempt.");
+            this.automater.logMessage("Too many failed login attempts, closing IBGateway.");
 
-                        // wait a minute
-                        long delay = 60 * 1000;
-                        Thread.sleep(delay);
-                    }
-
-                    // execute asynchronously on the AWT event dispatching thread
-                    SwingUtilities.invokeLater(() -> {
-                        try {
-                            JButton button = Common.getButton(window, "OK");
-                            if (button != null) {
-                                this.automater.logMessage("Click button: [OK]");
-                                button.doClick();
-                            }
-
-                            Window mainWindow = automater.getMainWindow();
-                            HandleLoginWindow(mainWindow, WindowEvent.WINDOW_OPENED);
-                        } catch (Exception e) {
-                            automater.logMessage("HandleLoginWindow error: " + e.getMessage());
-                        }
-                    });
-                } catch (Exception e) {
-                    automater.logMessage("HandleLoginWindow error: " + e.getMessage());
-                }
-            }).start();
+            CloseMainWindow();
 
             return true;
         }
@@ -1415,47 +1350,5 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("Gateway Logs menu not found.");
             }
         }
-    }
-
-    /**
-     * Gets whether the current time is within the IB weekend server reset period.
-     *
-     * @return Returns true if the current time is within the IB weekend server reset period, false otherwise
-     */
-    private boolean IsWithinWeekendServerResetTimes()
-    {
-        boolean result = false;
-
-        Instant utcTime = Instant.now();
-        ZonedDateTime time = utcTime.atZone(ZoneId.of("America/New_York"));
-        LocalTime timeOfDay = time.toLocalTime();
-
-        // Note: we add 15 minutes *before* and *after* all time ranges for safety margin
-        // During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
-        if (time.getDayOfWeek() == DayOfWeek.FRIDAY && timeOfDay.isAfter(LocalTime.of(22, 45, 0)) ||
-            // Occasionally the disconnection due to the IB reset period might last
-            // much longer than expected during weekends so we include all Saturday.
-            time.getDayOfWeek() == DayOfWeek.SATURDAY)
-        {
-            // Friday: 23:00 - 03:00 ET for all regions
-            result = true;
-        }
-
-        return result;
-    }
-
-    /**
-     * Gets the time (UTC) of the next reconnection attempt.
-     *
-     * @return Returns the time (UTC) of the next reconnection attempt
-     */
-    private Instant GetNextWeekendReconnectionTimeUtc() {
-        // return the UTC time at one hour before Sunday FX market open,
-        // ignoring holidays as we should be able to connect with closed markets anyway
-        return LocalDate.now()
-                .with(next(DayOfWeek.SUNDAY))
-                .atTime(16, 0, 0)
-                .atZone(ZoneId.of("America/New_York"))
-                .toInstant();
     }
 }
