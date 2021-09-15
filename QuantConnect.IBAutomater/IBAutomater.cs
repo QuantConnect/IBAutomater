@@ -339,7 +339,7 @@ namespace QuantConnect.IBAutomater
                         }
 
                         _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, additionalMessage);
-                        message = "IB Automater initialization timeout.";
+                        message = "IB Automater initialization timeout. " + additionalMessage;
                     }
 
                     _isFirstStart = false;
@@ -521,7 +521,7 @@ namespace QuantConnect.IBAutomater
                 // authentication in progress
                 if (text.Contains("Window event:"))
                 {
-                    _isAuthenticating = text.Contains("Authenticating...");
+                    _isAuthenticating = text.Contains("Authenticating");
                 }
             }
         }
@@ -740,7 +740,34 @@ namespace QuantConnect.IBAutomater
                 _isWithinScheduledServerResetTimesLastValue = result;
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
-                    $"InteractiveBrokersBrokerage.IsWithinScheduledServerResetTimes(): {result}"));
+                    $"IBAutomater.IsWithinScheduledServerResetTimes(): {result}"));
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Returns whether the current time is within the IB weekend server reset period.
+        /// </summary>
+        public bool IsWithinWeekendServerResetTimes()
+        {
+            // Use schedule based on server region:
+            // https://www.interactivebrokers.com/en/index.php?f=2225
+
+            bool result = false;
+            var utcTime = DateTime.UtcNow;
+            var time = utcTime.ConvertFromUtc(TimeZoneNewYork);
+            var timeOfDay = time.TimeOfDay;
+
+            // Note: we add 15 minutes *before* and *after* all time ranges for safety margin
+            // During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
+            if (time.DayOfWeek == DayOfWeek.Friday && timeOfDay > new TimeSpan(22, 45, 0) ||
+                // Occasionally the disconnection due to the IB reset period might last
+                // much longer than expected during weekends (even up to the cash sync time).
+                time.DayOfWeek == DayOfWeek.Saturday)
+            {
+                // Friday: 23:00 - 03:00 ET for all regions
+                result = true;
             }
 
             return result;
