@@ -518,10 +518,12 @@ namespace QuantConnect.IBAutomater
                     _ibAutomaterInitializeEvent.Set();
                 }
 
-                // authentication in progress
+                // authentication/connection in progress
                 if (text.Contains("Window event:"))
                 {
-                    _isAuthenticating = text.Contains("Authenticating");
+                    _isAuthenticating = text.Contains("Authenticating") ||
+                                        text.Contains("Connecting to server") ||
+                                        text.Contains("server error, will retry");
                 }
             }
         }
