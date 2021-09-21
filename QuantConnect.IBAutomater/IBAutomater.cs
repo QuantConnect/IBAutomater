@@ -521,9 +521,9 @@ namespace QuantConnect.IBAutomater
                 // authentication/connection in progress
                 if (text.Contains("Window event:"))
                 {
-                    _isAuthenticating = text.Contains("Authenticating") ||
-                                        text.Contains("Connecting to server") ||
-                                        text.Contains("server error, will retry");
+                    _isAuthenticating = text.Contains("Authenticating", StringComparison.InvariantCultureIgnoreCase) ||
+                                        text.Contains("Connecting to server", StringComparison.InvariantCultureIgnoreCase) ||
+                                        text.Contains("server error, will retry", StringComparison.InvariantCultureIgnoreCase);
                 }
             }
         }
