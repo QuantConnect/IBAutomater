@@ -456,7 +456,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Paper Trading warning window.
-     * - clicks the "OK" button
+     * - clicks the "I understand and accept" button
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -1129,6 +1129,8 @@ public class WindowEventListener implements AWTEventListener {
 
         if (windowName != null && windowName.startsWith("dialog") && !IsKnownWindowTitle(title))
         {
+            LogWindowContents(window);
+
             String text = GetWindowText(window);
 
             if (text != null && text.length() > 0)
@@ -1136,7 +1138,6 @@ public class WindowEventListener implements AWTEventListener {
                 if (this.automater.getSettings().getExportIbGatewayLogs()) {
                     SaveIBLogs();
                 }
-                LogWindowContents(window);
 
                 this.automater.logMessage("Unknown message window detected: " + text);
             }
