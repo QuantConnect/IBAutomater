@@ -31,6 +31,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -254,6 +255,19 @@ public class Common {
         ArrayList<Component> textPanes = new ArrayList<>();
         Common.loadComponents(container, JTextPane.class, textPanes);
         return textPanes.size() > 0 ? (JTextPane)textPanes.get(0) : null;
+    }
+
+    /**
+     * Gets the first JTextArea instance in the container.
+     *
+     * @param container The container to be queried
+     *
+     * @return Returns the first JTextArea instance in the given container, null if the text area is not found
+     */
+    public static JTextArea getTextArea(Container container) {
+        ArrayList<Component> textAreas = new ArrayList<>();
+        Common.loadComponents(container, JTextArea.class, textAreas);
+        return textAreas.size() > 0 ? (JTextArea)textAreas.get(0) : null;
     }
 
     /**
