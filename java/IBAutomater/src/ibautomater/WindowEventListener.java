@@ -21,14 +21,8 @@ import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import static java.time.temporal.TemporalAdjusters.next;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +38,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
@@ -1088,22 +1083,32 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     /**
-     * Gets the text content of the window (labels and text panes only).
+     * Gets the text content of the window (labels, text panes and text areas only).
      *
      * @param window The window instance
      *
      * @return Returns the text content of the window
      */
     private String GetWindowText(Window window) {
-        String text;
+        String text = "";
 
         JTextPane textPane = Common.getTextPane(window);
         if (textPane != null) {
-            text = textPane.getText().replaceAll("\\<.*?>", " ").trim();
+            String t = textPane.getText();
+            if (t != null) {
+                text += t.replaceAll("\\<.*?>", " ").trim();
+            }
         }
-        else {
-            text = String.join(" ", Common.getLabelTextLines(window));
+
+        JTextArea textArea = Common.getTextArea(window);
+        if (textArea != null) {
+            String t = textArea.getText();
+            if (t != null) {
+                text += " " + t.replaceAll("\\<.*?>", " ").trim();
+            }
         }
+
+        text += " " + String.join(" ", Common.getLabelTextLines(window));
 
         return text;
     }
@@ -1133,20 +1138,11 @@ public class WindowEventListener implements AWTEventListener {
 
             String text = GetWindowText(window);
 
-            if (text != null && text.length() > 0)
-            {
-                if (this.automater.getSettings().getExportIbGatewayLogs()) {
-                    SaveIBLogs();
-                }
-
-                this.automater.logMessage("Unknown message window detected: " + text);
+            if (this.automater.getSettings().getExportIbGatewayLogs()) {
+                SaveIBLogs();
             }
 
-            JButton button = Common.getButton(window, "OK");
-            if (button != null) {
-                this.automater.logMessage("Click button: [OK]");
-                button.doClick();
-            }
+            this.automater.logMessage("Unknown message window detected: " + text);
 
             return true;
         }
@@ -1323,6 +1319,10 @@ public class WindowEventListener implements AWTEventListener {
             else if (component instanceof JTextField)
             {
                 text = " - Text: [" + ((JTextField) component).getText() + "]";
+            }
+            else if (component instanceof JTextArea)
+            {
+                text = " - Text: [" + ((JTextArea) component).getText() + "]";
             }
             else if (component instanceof JCheckBox)
             {
