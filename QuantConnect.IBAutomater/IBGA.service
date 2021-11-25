@@ -1,0 +1,27 @@
+# /etc/systemd/system/IBGA.service
+[Unit]
+Description=IB Gatewey Automater service/daemon created from .NET worker template
+
+[Service]
+Type=notify
+# will set the Current Working Directory (CWD). Worker service will have issues without this setting
+WorkingDirectory=/home/ib_user/IBGA
+# systemd will run this executable to start the service
+ExecStart=/home/ib_user/IBGA/IBGatewayAutomater
+# to query logs using journalctl, set a logical name here  
+SyslogIdentifier=IBGA
+
+# Use your username to keep things simple.
+# If you pick a different user, make sure dotnet and all permissions are set correctly to run the app
+# To update permissions, use 'chown yourusername -R /srv/Worker' to take ownership of the folder and files,
+#       Use 'chmod +x /srv/Worker/Worker' to allow execution of the executable file
+User=ib_user
+
+# ensure the service restarts after crashing
+Restart=always
+# amount of time to wait before restarting the service              
+RestartSec=5
+
+# This environment variable is necessary when dotnet isn't loaded for the specified user.
+# To figure out this value, run 'env | grep DOTNET_ROOT' when dotnet has been loaded into your shell.
+#Environment=DOTNET_ROOT=/opt/rh/rh-dotnet31/root/usr/lib64/dotnet  
