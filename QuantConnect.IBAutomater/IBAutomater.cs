@@ -601,6 +601,8 @@ namespace QuantConnect.IBAutomater
         {
             lock (_locker)
             {
+                _lastStartResult = StartResult.Success;
+                
                 if (!IsRunning())
                 {
                     return;
@@ -639,7 +641,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 _process = null;
-
+                                
                 // remove Java agent setting from IB configuration file
                 UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
             }
