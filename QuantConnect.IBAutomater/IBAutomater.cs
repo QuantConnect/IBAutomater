@@ -631,6 +631,7 @@ namespace QuantConnect.IBAutomater
                 {
                     try
                     {
+                        Process.Start("pkill", "socat");
                         Process.Start("pkill", "java");
                         Process.Start("pkill", "Xvfb");
                     }
