@@ -683,8 +683,8 @@ namespace QuantConnect.IBAutomater
 
             bool result;
             var utcTime = DateTime.UtcNow;
-            var time = utcTime.ConvertFromUtc(TimeZoneNewYork);
-            var timeOfDay = time.TimeOfDay;
+            var newYorkTime = utcTime.ConvertFromUtc(TimeZoneNewYork);
+            var newYorkTimeOfDay = newYorkTime.TimeOfDay;
 
             if (IsWithinWeekendServerResetTimes(utcTime))
             {
@@ -706,7 +706,7 @@ namespace QuantConnect.IBAutomater
                     case Region.Asia:
                     {
                         // Saturday - Thursday: First reset: 16:30 - 17:00 ET
-                        if (timeOfDay > new TimeSpan(16, 15, 0) && timeOfDay < new TimeSpan(17, 15, 0))
+                        if (newYorkTimeOfDay > new TimeSpan(16, 15, 0) && newYorkTimeOfDay < new TimeSpan(17, 15, 0))
                         {
                             result = true;
                         }
@@ -724,7 +724,7 @@ namespace QuantConnect.IBAutomater
                     default:
                     {
                         // Saturday - Thursday: 23:45 - 00:45 ET
-                        result = timeOfDay > new TimeSpan(23, 30, 0) || timeOfDay < new TimeSpan(1, 0, 0);
+                        result = newYorkTimeOfDay > new TimeSpan(23, 30, 0) || newYorkTimeOfDay < new TimeSpan(1, 0, 0);
                     }
                         break;
                 }
@@ -758,17 +758,17 @@ namespace QuantConnect.IBAutomater
             // https://www.interactivebrokers.com/en/index.php?f=2225
 
             bool result = false;
-            var time = utcTime.ConvertFromUtc(TimeZoneNewYork);
-            var timeOfDay = time.TimeOfDay;
+            var newYorkTime = utcTime.ConvertFromUtc(TimeZoneNewYork);
+            var newYorkTimeOfDay = newYorkTime.TimeOfDay;
 
             // Note: we add 15 minutes *before* and *after* all time ranges for safety margin
             // During the Friday evening reset period, all services will be unavailable in all regions for the duration of the reset.
-            if (time.DayOfWeek == DayOfWeek.Friday && timeOfDay > new TimeSpan(22, 45, 0) ||
+            if (newYorkTime.DayOfWeek == DayOfWeek.Friday && newYorkTimeOfDay > new TimeSpan(22, 45, 0) ||
                 // Occasionally the disconnection due to the IB reset period might last
                 // much longer than expected during weekends (even up to the cash sync time).
-                time.DayOfWeek == DayOfWeek.Saturday ||
+                newYorkTime.DayOfWeek == DayOfWeek.Saturday ||
                 // Occasionally disconnection on the first hours of Sunday
-                time.DayOfWeek == DayOfWeek.Sunday && timeOfDay < new TimeSpan(2, 0, 0))
+                newYorkTime.DayOfWeek == DayOfWeek.Sunday && newYorkTimeOfDay < new TimeSpan(2, 0, 0))
             {
                 // Friday: 23:00 - 03:00 ET for all regions
                 result = true;
