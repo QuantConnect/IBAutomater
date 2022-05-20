@@ -219,16 +219,15 @@ To build the NuGet package we need to complete the following three steps in orde
 
 - Increment the version number in QuantConnect.IBAutomater.csproj
 - Open the solution file: /IBAutomater/IBAutomater.sln
-- Rebuild solution 
-  - output: /IBAutomater/QuantConnect.IBAutomater/bin/Debug/QuantConnect.IBAutomater.2.0.xx.nupkg
+- Rebuild solution & test locally
 
 #### 3. NuGet upload
 
-- In the /IBAutomater/QuantConnect.IBAutomater/bin/Debug/ folder, 
-  run the following commands:
+- In the /IBAutomater/ folder, run the following commands:
 ```
-  nuget setApiKey <api-key>
-  nuget push QuantConnect.IBAutomater.2.0.xx.nupkg -Source https://api.nuget.org/v3/index.json
+  dotnet pack QuantConnect.IBAutomater/QuantConnect.IBAutomater.csproj --output ./packages -p:PackageVersion=2.0.XXXX --configuration Release --include-symbols
 ```
-
-
+- Extract `QuantConnect.IBAutomater.2.0.XXXX.nupkg` to sanity test it's contents before pushing
+```
+  dotnet nuget push ./packages/QuantConnect.IBAutomater.2.0.XXXX.nupkg --api-key <API KEY> --source https://api.nuget.org/v3/index.json
+```
