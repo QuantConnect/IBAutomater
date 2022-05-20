@@ -228,6 +228,7 @@ To build the NuGet package we need to complete the following three steps in orde
   dotnet pack QuantConnect.IBAutomater/QuantConnect.IBAutomater.csproj --output ./packages -p:PackageVersion=2.0.XXXX --configuration Release --include-symbols
 ```
 - Extract `QuantConnect.IBAutomater.2.0.XXXX.nupkg` to sanity test it's contents before pushing
+- Make sure 'IBAutomater.sh' line endings are unix
 ```
   dotnet nuget push ./packages/QuantConnect.IBAutomater.2.0.XXXX.nupkg --api-key <API KEY> --source https://api.nuget.org/v3/index.json
 ```
