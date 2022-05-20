@@ -766,7 +766,9 @@ namespace QuantConnect.IBAutomater
             if (time.DayOfWeek == DayOfWeek.Friday && timeOfDay > new TimeSpan(22, 45, 0) ||
                 // Occasionally the disconnection due to the IB reset period might last
                 // much longer than expected during weekends (even up to the cash sync time).
-                time.DayOfWeek == DayOfWeek.Saturday)
+                time.DayOfWeek == DayOfWeek.Saturday ||
+                // Occasionally disconnection on the first hours of Sunday
+                time.DayOfWeek == DayOfWeek.Sunday && timeOfDay < new TimeSpan(2, 0, 0))
             {
                 // Friday: 23:00 - 03:00 ET for all regions
                 result = true;
