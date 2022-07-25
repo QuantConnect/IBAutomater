@@ -551,12 +551,10 @@ namespace QuantConnect.IBAutomater
 
                     // find new IBGateway process (created by auto-restart)
 
-                    var processName = IsWindows ? "ibgateway" : "java";
-
-                    var process = Process.GetProcessesByName(processName).FirstOrDefault();
+                    var process = GetIbGatewayProcess();
                     if (process == null)
                     {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found: {processName}"));
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found"));
 
                         TraceIbLauncherLogFile();
 
@@ -564,7 +562,7 @@ namespace QuantConnect.IBAutomater
                     }
                     else
                     {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}"));
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}. Arguments: {GetProcessArguments(process)}"));
 
                         // fire Restarted event so the client can reconnect only (without starting IBGateway)
                         Restarted?.Invoke(this, new EventArgs());
@@ -1063,6 +1061,53 @@ namespace QuantConnect.IBAutomater
                 {
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading IB launcher log file: {exception.Message}"));
                 }
+            }
+        }
+
+        private string GetProcessArguments(Process process)
+        {
+            if (IsWindows)
+            {
+                // we don't need this and supporting it requires dependencies so let's just skip it
+                return "Not supported";
+            }
+
+            try
+            {
+                return File.ReadAllText($"/proc/{process.Id}/cmdline");
+            }
+            catch (Exception exception)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading process cmdline: {exception.Message}"));
+            }
+            return string.Empty;
+        }
+
+        private Process GetIbGatewayProcess()
+        {
+            var processName = IsWindows ? "ibgateway" : "java";
+
+            var processes = Process.GetProcessesByName(processName);
+            if (processes == null || processes.Length == 0)
+            {
+                return null;
+            }
+            else if (processes.Length > 1)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Found multiple processes named: '{processName}'"));
+
+                // in linux there's a short lived java launcher process but it doesn't have our jar as argument
+                var filteredProcesses = processes.Where(p => GetProcessArguments(p).Contains("IBAutomater.jar", StringComparison.InvariantCultureIgnoreCase)).ToList();
+                if (filteredProcesses.Count != 1)
+                {
+                    return null;
+                }
+                return filteredProcesses.Single();
+            }
+            else
+            {
+                // happy case
+                return processes.Single();
             }
         }
     }
