@@ -660,6 +660,20 @@ namespace QuantConnect.IBAutomater
         }
 
         /// <summary>
+        /// Triggers a restart from within the IB Gateway using it's daily restart functionality.
+        /// This is different than normal restart because it will not require a 2FA call
+        /// </summary>
+        public void SoftRestart()
+        {
+            lock (_locker)
+            {
+                var ibGatewayVersionPath = GetIbGatewayVersionPath();
+                var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
+                File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
+            }
+        }
+
+        /// <summary>
         /// Gets the last <see cref="StartResult"/> instance
         /// </summary>
         /// <returns>Returns the last start result instance</returns>
