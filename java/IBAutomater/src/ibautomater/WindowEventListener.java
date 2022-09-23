@@ -21,8 +21,11 @@ import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
+import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -63,6 +66,7 @@ public class WindowEventListener implements AWTEventListener {
         }
     };
     private boolean isAutoRestartTokenExpired = false;
+    private boolean restartNow = false;
     private Window viewLogsWindow = null;
 
     private Instant twoFactorConfirmationRequestTime;
@@ -434,19 +438,54 @@ public class WindowEventListener implements AWTEventListener {
             // The main window might not be completely initialized at this point,
             // so we start a task and wait 30 seconds maximum for the window to be ready.
 
-            new Thread(()-> {
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
-                try {
-                    future.get(30, TimeUnit.SECONDS);
-                } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    this.automater.logError(e);
-                }
-                executor.shutdown();
-            }).start();
+            RunInitializationUsingThread();
+            RunRestartWatcher();
         }
 
         return false;
+    }
+
+    /**
+     * Will start a thread which will get the main window and setup our settings
+     *
+     */
+    private void RunInitializationUsingThread() {
+        new Thread(()-> {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Window> future = executor.submit(new GetMainWindowTask(this.automater));
+            try {
+                future.get(30, TimeUnit.SECONDS);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                this.automater.logError(e);
+            }
+            executor.shutdown();
+        }).start();
+    }
+
+    /**
+     * Will start a thread which will monitor for restart requests and trigger a restart when detected
+     *
+     */
+    @SuppressWarnings("SleepWhileInLoop")
+    private void RunRestartWatcher() {
+        new Thread(()-> {
+            this.automater.logMessage("Start running restart watcher thread...");
+            while (true) {
+                try {
+                    File file = new File("restart");
+                    if(file.exists()) {
+                        file.delete();
+                        this.automater.logMessage("Restart request detected, starting restart...");
+                        this.restartNow = true;
+                        RunInitializationUsingThread();
+                    }
+
+                    Thread.sleep(1000 * 10);
+                } catch (InterruptedException ex) {
+                    // stopped
+                }
+            }
+        }).start();
     }
 
     /**
@@ -619,6 +658,44 @@ public class WindowEventListener implements AWTEventListener {
         if (!autoRestart.isSelected()) {
             this.automater.logMessage("Select radio button: [" + autoRestartText + "]");
             autoRestart.setSelected(true);
+        }
+
+        JRadioButton amButton = Common.getRadioButton(window, "AM");
+        if (amButton == null) {
+            throw new Exception("Auto restart AM button not found");
+        }
+        JRadioButton pmButton = Common.getRadioButton(window, "PM");
+        if (pmButton == null) {
+            throw new Exception("Auto restart PM button not found");
+        }
+
+        JTextField restartTimeField = Common.getTextField(window, 0);
+        if (restartTimeField == null) {
+            throw new Exception("Restart time text field not found");
+        }
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("hh:mma");
+        // defaults
+        String restartTime = "11:45";
+        JRadioButton timeButton = pmButton;
+        if(this.restartNow) {
+            this.restartNow = false;
+            // will restart in 2 minutes
+            LocalDateTime now = LocalDateTime.now().plusMinutes(2);
+            String completeTime = dtf.format(now);
+            restartTime = completeTime.substring(0, 5);
+            if("am".equals(completeTime.substring(5).toLowerCase())){
+                timeButton = amButton;
+            }
+        }
+
+        this.automater.logMessage("Set restart time value: [" + restartTime + "]");
+        restartTimeField.setText(restartTime);
+        if (!timeButton.isSelected()) {
+            this.automater.logMessage("Select radio button: [" + timeButton.getText()+ "]");
+            timeButton.setSelected(true);
+        }
+        else {
+            this.automater.logMessage("Radio button: [" + timeButton.getText()+ "] already selected");
         }
 
         JButton okButton = Common.getButton(window, "OK");
