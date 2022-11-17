@@ -1024,10 +1024,30 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
         if (title != null && title.equals("Second Factor Authentication")) {
             if (eventId == WindowEvent.WINDOW_OPENED) {
-                this.twoFactorConfirmationRequestTime = Instant.now();
-                this.twoFactorConfirmationAttempts++;
-                this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
-                return true;
+                JButton button = Common.getButton(window, "OK");
+                if(button != null) {
+                    // TODO: remove, just adding to get more information
+                    LogWindowContents(window);
+
+                    // we need to choose the 2fa method
+                    JToggleButton ibKey = Common.getToggleButton(window, "IB Key");
+                    if (ibKey == null) {
+                        throw new Exception("IB Key 2FA method not found");
+                    }
+                    if (!ibKey.isSelected()) {
+                        this.automater.logMessage("Click button: [" + ibKey + "]");
+                        ibKey.doClick();
+                    }
+
+                    button.doClick();
+                    return true;
+                }
+                else {
+                    this.twoFactorConfirmationRequestTime = Instant.now();
+                    this.twoFactorConfirmationAttempts++;
+                    this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
+                    return true;
+                }
             }
             else if (eventId == WindowEvent.WINDOW_CLOSED) {
                 Duration delta = Duration.between(this.twoFactorConfirmationRequestTime, Instant.now());
