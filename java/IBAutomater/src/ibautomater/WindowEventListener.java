@@ -38,6 +38,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
@@ -46,6 +47,7 @@ import javax.swing.JTextField;
 import javax.swing.JTextPane;
 import javax.swing.JToggleButton;
 import javax.swing.JTree;
+import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
 import javax.swing.tree.TreePath;
 
@@ -1022,8 +1024,41 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         String title = Common.getTitle(window);
-        if (title != null && title.equals("Second Factor Authentication")) {
-            if (eventId == WindowEvent.WINDOW_OPENED) {
+        if (title != null && title.equalsIgnoreCase("Second Factor Authentication")) {
+            JTextArea textArea = Common.getTextArea(window);
+            if(textArea != null && textArea.getText().equalsIgnoreCase("Select second factor device")) {
+                if (eventId == WindowEvent.WINDOW_OPENED) {
+                    // we need to select the 2fa method
+                    JButton button = Common.getButton(window, "OK");
+                    if(button != null) {
+                        JList list = Common.getList(window);
+                        if(list != null) {
+                            ListModel listModel = ((JList) list).getModel();
+                            boolean foundIbKey = false;
+                            for (int i = 0; i < listModel.getSize(); i++) {
+                                String entry = listModel.getElementAt(i).toString().trim();
+                                this.automater.logMessage("2FA method: " + entry);
+                                if (entry.equalsIgnoreCase("IB Key")) {
+                                    foundIbKey = true;
+                                    list.setSelectedIndex(i);
+                                }
+                            }
+
+                            if(foundIbKey) {
+                                button.doClick();
+                            } else {
+                                throw new Exception("Failed to find supported 2FA method 'IB Key'");
+                            }
+                            return true;
+                        }
+                    }
+                    // unexpected
+                    return false;
+                }
+                // 2fa selection window closed
+                return true;
+            }
+            else if (eventId == WindowEvent.WINDOW_OPENED) {
                 this.twoFactorConfirmationRequestTime = Instant.now();
                 this.twoFactorConfirmationAttempts++;
                 this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
