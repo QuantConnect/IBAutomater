@@ -26,6 +26,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -304,6 +305,19 @@ public class Common {
         ArrayList<Component> trees = new ArrayList<>();
         Common.loadComponents(container, JTree.class, trees);
         return trees.size() > 0 ? (JTree)trees.get(0) : null;
+    }
+
+    /**
+     * Gets the first JList instance in the container.
+     *
+     * @param container The container to be queried
+     *
+     * @return Returns the first JList instance in the given container, null if the list is not found
+     */
+    public static JList getList(Container container) {
+        ArrayList<Component> lists = new ArrayList<>();
+        Common.loadComponents(container, JList.class, lists);
+        return lists.size() > 0 ? (JList)lists.get(0) : null;
     }
 
     /**
