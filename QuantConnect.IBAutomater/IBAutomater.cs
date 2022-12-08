@@ -87,9 +87,11 @@ namespace QuantConnect.IBAutomater
 
         private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
         private int _gatewaySoftRestartCount;
+        private readonly CancellationTokenSource _gatewaySoftRestartCountTaskTokenSource;
         private bool _gatewaySoftRestartTimedOut;
         private DateTime _lastSoftRestartedTime;
         private readonly object _lastSoftRestartedTimeLock = new object();
+        private CancellationTokenSource _gatewaySoftRestartTokenSource;
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -186,6 +188,19 @@ namespace QuantConnect.IBAutomater
             _exportIbGatewayLogs = exportIbGatewayLogs;
 
             _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
+        }
+
+        ~IBAutomater()
+        {
+            if (_gatewaySoftRestartCountTaskTokenSource != null)
+            {
+                _gatewaySoftRestartCountTaskTokenSource.Cancel();
+                // wait for the tasks depending on the cancel token to finish before disposing it;
+                Thread.Sleep(1000);
+                _gatewaySoftRestartCountTaskTokenSource.Dispose();
+            }
+
+            _gatewaySoftRestartTokenSource?.Dispose();
         }
 
         /// <summary>
@@ -317,6 +332,7 @@ namespace QuantConnect.IBAutomater
                         _lastSoftRestartedTime = DateTime.UtcNow;
                     }
                 };
+                StartGatewayRestartCountResetTask();
 
                 process.BeginErrorReadLine();
                 process.BeginOutputReadLine();
@@ -652,6 +668,9 @@ namespace QuantConnect.IBAutomater
 
                 _process = null;
 
+                // stop any restart threads
+                _gatewaySoftRestartTokenSource?.Cancel();
+
                 // remove Java agent setting from IB configuration file
                 UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
             }
@@ -679,14 +698,36 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         public void SoftRestart()
         {
-            lock (_locker)
+            if (_gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
             {
-                var ibGatewayVersionPath = GetIbGatewayVersionPath();
-                var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
-                File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
+                return;
+            }
+
+            var currentRestartCount = Interlocked.Increment(ref _gatewaySoftRestartCount);
+            var delay = currentRestartCount == 1
+                ? TimeSpan.Zero
+                // We double the delay each time we try to restart the gateway within an hour to limit the number of restarts.
+                // The multiplier is capped so we don't have delays that are too long.
+                : TimeSpan.FromMinutes(5) * Math.Min(8, Math.Pow(2, currentRestartCount - 1));
+
+            // we take the lock to avoid it getting disposed while we are evaluating it
+            lock (_gatewaySoftRestartTokenSource ?? new object())
+            {
+                _gatewaySoftRestartTokenSource?.Dispose();
+                _gatewaySoftRestartTokenSource = new CancellationTokenSource();
+            }
+
+            Task.Delay(delay, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
+            {
+                lock (_locker)
+                {
+                    var ibGatewayVersionPath = GetIbGatewayVersionPath();
+                    var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
+                    File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
+                };
 
                 // Detect rare gateway restart timeouts that could leave the gateway in a stale state
-                Task.Delay(_maxExpectedGatewayRestartTime).ContinueWith(_ =>
+                Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
                 {
                     TimeSpan lastRestartDuration;
                     lock (_lastSoftRestartedTimeLock)
@@ -708,8 +749,6 @@ namespace QuantConnect.IBAutomater
                         }
 
                         _gatewaySoftRestartTimedOut = true;
-                        // Let's reset the restart count so the delay is not doubled for this restart
-                        //Interlocked.Exchange(ref _gatewaySoftRestartCount, 0);
                         lock (_locker)
                         {
                             if (File.Exists(restartFilePath))
@@ -725,7 +764,8 @@ namespace QuantConnect.IBAutomater
                         _gatewaySoftRestartTimedOut = false;
                     }
                 });
-            }
+            });
+
         }
 
         /// <summary>
@@ -1178,6 +1218,24 @@ namespace QuantConnect.IBAutomater
                 // happy case
                 return processes.Single();
             }
+        }
+
+        /// <summary>
+        /// Recurring task to reset the gateway restart count.
+        /// We keep track of the restart count to limit the number of times the gateway is consecutively restarted.
+        /// </summary>
+        private void StartGatewayRestartCountResetTask()
+        {
+            Task.Delay(TimeSpan.FromHours(1), _gatewaySoftRestartCountTaskTokenSource.Token).ContinueWith(t =>
+            {
+                if (t.IsCanceled)
+                {
+                    return;
+                }
+
+                Interlocked.Exchange(ref _gatewaySoftRestartCount, 0);
+                StartGatewayRestartCountResetTask();
+            });
         }
     }
 }
