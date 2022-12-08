@@ -442,6 +442,8 @@ public class WindowEventListener implements AWTEventListener {
 
             RunInitializationUsingThread();
             RunRestartWatcher();
+
+            return true;
         }
 
         return false;

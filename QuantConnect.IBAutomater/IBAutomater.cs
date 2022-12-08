@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using NodaTime;
 
@@ -83,6 +84,12 @@ namespace QuantConnect.IBAutomater
         private int _logLinesRead;
         private readonly Timer _timerLogReader;
         private readonly object _logLocker = new object();
+
+        private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
+        private int _gatewaySoftRestartCount;
+        private bool _gatewaySoftRestartTimedOut;
+        private DateTime _lastSoftRestartedTime;
+        private readonly object _lastSoftRestartedTimeLock = new object();
 
         /// <summary>
         /// Event fired when the process writes to the output stream
@@ -303,6 +310,13 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - Name:{process.ProcessName} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
+                Restarted += (sender, e) =>
+                {
+                    lock (_lastSoftRestartedTimeLock)
+                    {
+                        _lastSoftRestartedTime = DateTime.UtcNow;
+                    }
+                };
 
                 process.BeginErrorReadLine();
                 process.BeginOutputReadLine();
@@ -670,6 +684,47 @@ namespace QuantConnect.IBAutomater
                 var ibGatewayVersionPath = GetIbGatewayVersionPath();
                 var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
                 File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
+
+                // Detect rare gateway restart timeouts that could leave the gateway in a stale state
+                Task.Delay(_maxExpectedGatewayRestartTime).ContinueWith(_ =>
+                {
+                    TimeSpan lastRestartDuration;
+                    lock (_lastSoftRestartedTimeLock)
+                    {
+                        lastRestartDuration = DateTime.UtcNow - _lastSoftRestartedTime;
+                    }
+
+                    // Restart timeout
+                    if (lastRestartDuration > _maxExpectedGatewayRestartTime)
+                    {
+                        // The gateway should have restarted by now, if it didn't we will try to restart it again
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
+
+                        if (_gatewaySoftRestartTimedOut)
+                        {
+                            // The restart timed out more than once in a row, let's send an error message
+                            // TODO: Send error message
+                            //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
+                        }
+
+                        _gatewaySoftRestartTimedOut = true;
+                        // Let's reset the restart count so the delay is not doubled for this restart
+                        //Interlocked.Exchange(ref _gatewaySoftRestartCount, 0);
+                        lock (_locker)
+                        {
+                            if (File.Exists(restartFilePath))
+                            {
+                                File.Delete(restartFilePath);
+                            }
+                        }
+                        SoftRestart();
+                    }
+                    else
+                    {
+                        // The gateway restarted successfully
+                        _gatewaySoftRestartTimedOut = false;
+                    }
+                });
             }
         }
 
