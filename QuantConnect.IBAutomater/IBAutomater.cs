@@ -724,48 +724,53 @@ namespace QuantConnect.IBAutomater
                     var ibGatewayVersionPath = GetIbGatewayVersionPath();
                     var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
                     File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
+
+                    StartGatewayRestartTimeoutMonitor(restartFilePath);
                 };
-
-                // Detect rare gateway restart timeouts that could leave the gateway in a stale state
-                Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
-                {
-                    TimeSpan lastRestartDuration;
-                    lock (_lastSoftRestartedTimeLock)
-                    {
-                        lastRestartDuration = DateTime.UtcNow - _lastSoftRestartedTime;
-                    }
-
-                    // Restart timeout
-                    if (lastRestartDuration > _maxExpectedGatewayRestartTime)
-                    {
-                        // The gateway should have restarted by now, if it didn't we will try to restart it again
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
-
-                        if (_gatewaySoftRestartTimedOut)
-                        {
-                            // The restart timed out more than once in a row, let's send an error message
-                            // TODO: Send error message
-                            //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
-                        }
-
-                        _gatewaySoftRestartTimedOut = true;
-                        lock (_locker)
-                        {
-                            if (File.Exists(restartFilePath))
-                            {
-                                File.Delete(restartFilePath);
-                            }
-                        }
-                        SoftRestart();
-                    }
-                    else
-                    {
-                        // The gateway restarted successfully
-                        _gatewaySoftRestartTimedOut = false;
-                    }
-                });
             });
 
+        }
+
+        private void StartGatewayRestartTimeoutMonitor(string restartFilePath)
+        {
+            // Detect rare gateway restart timeouts that could leave the gateway in a stale state
+            Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
+            {
+                TimeSpan lastRestartDuration;
+                lock (_lastSoftRestartedTimeLock)
+                {
+                    lastRestartDuration = DateTime.UtcNow - _lastSoftRestartedTime;
+                }
+
+                // Restart timeout
+                if (lastRestartDuration > _maxExpectedGatewayRestartTime)
+                {
+                    // The gateway should have restarted by now, if it didn't we will try to restart it again
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
+
+                    if (_gatewaySoftRestartTimedOut)
+                    {
+                        // The restart timed out more than once in a row, let's send an error message
+                        // TODO: Send error message
+                        //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
+                    }
+
+                    _gatewaySoftRestartTimedOut = true;
+                    lock (_locker)
+                    {
+                        if (File.Exists(restartFilePath))
+                        {
+                            File.Delete(restartFilePath);
+                        }
+                    }
+                    SoftRestart();
+                }
+                else
+                {
+                    // The gateway restarted successfully
+                    _gatewaySoftRestartTimedOut = false;
+                }
+            });
         }
 
         /// <summary>
