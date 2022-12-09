@@ -90,7 +90,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// An unknown IB message window was detected
         /// </summary>
-        UnknownMessageWindowDetected
+        UnknownMessageWindowDetected,
+
+        /// <summary>
+        /// The IBGateway soft restart timed out
+        /// </summary>
+        SoftRestartTimeout
     }
 
     /// <summary>
@@ -156,6 +161,10 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.UnknownMessageWindowDetected,
                     "An unknown IB message window was detected."
+                },
+                {
+                    ErrorCode.SoftRestartTimeout,
+                    "The IBGateway soft restart timed out."
                 }
             };
 
