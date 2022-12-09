@@ -30,7 +30,7 @@ namespace QuantConnect.IBAutomater
     /// The IB Automater is responsible for automating the configuration/logon process
     /// to the IB Gateway application and for handling/dismissing its popup windows.
     /// </summary>
-    public class IBAutomater
+    public class IBAutomater : IDisposable
     {
         private readonly TimeSpan _initializationTimeout = TimeSpan.FromMinutes(15);
 
@@ -41,6 +41,8 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
         private readonly bool _exportIbGatewayLogs;
+
+        private volatile bool _isDisposeCalled;
 
         private readonly object _locker = new object();
         private Process _process;
@@ -134,7 +136,7 @@ namespace QuantConnect.IBAutomater
             var exportIbGatewayLogs = config["ib-export-ibgateway-logs"].ToObject<bool>();
 
             // Create a new instance of the IBAutomater class
-            var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber, exportIbGatewayLogs);
+            using var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber, exportIbGatewayLogs);
 
             // Attach the event handlers
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
@@ -190,15 +192,17 @@ namespace QuantConnect.IBAutomater
             _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
         }
 
-        ~IBAutomater()
+        public void Dispose()
         {
-            if (_gatewaySoftRestartCountTaskTokenSource != null)
+            if (_isDisposeCalled)
             {
-                _gatewaySoftRestartCountTaskTokenSource.Cancel();
-                // wait for the tasks depending on the cancel token to finish before disposing it;
-                Thread.Sleep(1000);
-                _gatewaySoftRestartCountTaskTokenSource.Dispose();
+                return;
             }
+
+            _isDisposeCalled = true;
+
+            // cancel the recurring restart count reset task
+            _gatewaySoftRestartCountTaskTokenSource?.Cancel();
 
             _gatewaySoftRestartTokenSource?.Dispose();
         }
@@ -698,7 +702,8 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         public void SoftRestart()
         {
-            if (_gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
+
+            if (_isDisposeCalled || _gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
             {
                 return;
             }
@@ -719,6 +724,11 @@ namespace QuantConnect.IBAutomater
 
             Task.Delay(delay, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
             {
+                if (_isDisposeCalled)
+                {
+                    return;
+                }
+
                 lock (_locker)
                 {
                     var ibGatewayVersionPath = GetIbGatewayVersionPath();
@@ -727,49 +737,6 @@ namespace QuantConnect.IBAutomater
 
                     StartGatewayRestartTimeoutMonitor(restartFilePath);
                 };
-            });
-
-        }
-
-        private void StartGatewayRestartTimeoutMonitor(string restartFilePath)
-        {
-            // Detect rare gateway restart timeouts that could leave the gateway in a stale state
-            Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
-            {
-                TimeSpan lastRestartDuration;
-                lock (_lastSoftRestartedTimeLock)
-                {
-                    lastRestartDuration = DateTime.UtcNow - _lastSoftRestartedTime;
-                }
-
-                // Restart timeout
-                if (lastRestartDuration > _maxExpectedGatewayRestartTime)
-                {
-                    // The gateway should have restarted by now, if it didn't we will try to restart it again
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
-
-                    if (_gatewaySoftRestartTimedOut)
-                    {
-                        // The restart timed out more than once in a row, let's send an error message
-                        // TODO: Send error message
-                        //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
-                    }
-
-                    _gatewaySoftRestartTimedOut = true;
-                    lock (_locker)
-                    {
-                        if (File.Exists(restartFilePath))
-                        {
-                            File.Delete(restartFilePath);
-                        }
-                    }
-                    SoftRestart();
-                }
-                else
-                {
-                    // The gateway restarted successfully
-                    _gatewaySoftRestartTimedOut = false;
-                }
             });
         }
 
@@ -1225,16 +1192,70 @@ namespace QuantConnect.IBAutomater
             }
         }
 
+        private void StartGatewayRestartTimeoutMonitor(string restartFilePath)
+        {
+            // Detect rare gateway restart timeouts that could leave the gateway in a stale state
+            Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
+            {
+                if (_isDisposeCalled)
+                {
+                    return;
+                }
+
+                TimeSpan lastRestartDuration;
+                lock (_lastSoftRestartedTimeLock)
+                {
+                    lastRestartDuration = DateTime.UtcNow - _lastSoftRestartedTime;
+                }
+
+                // Restart timeout
+                if (lastRestartDuration > _maxExpectedGatewayRestartTime)
+                {
+                    // The gateway should have restarted by now, if it didn't we will try to restart it again
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
+
+                    if (_gatewaySoftRestartTimedOut)
+                    {
+                        // The restart timed out more than once in a row, let's send an error message
+                        // TODO: Send error message
+                        //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
+                    }
+
+                    _gatewaySoftRestartTimedOut = true;
+                    lock (_locker)
+                    {
+                        if (File.Exists(restartFilePath))
+                        {
+                            File.Delete(restartFilePath);
+                        }
+                    }
+                    SoftRestart();
+                }
+                else
+                {
+                    // The gateway restarted successfully
+                    _gatewaySoftRestartTimedOut = false;
+                }
+            });
+        }
+
         /// <summary>
         /// Recurring task to reset the gateway restart count.
         /// We keep track of the restart count to limit the number of times the gateway is consecutively restarted.
         /// </summary>
         private void StartGatewayRestartCountResetTask()
         {
-            Task.Delay(TimeSpan.FromHours(1), _gatewaySoftRestartCountTaskTokenSource.Token).ContinueWith(t =>
+            if (_isDisposeCalled)
             {
-                if (t.IsCanceled)
+                return;
+            }
+
+            Task.Delay(TimeSpan.FromHours(1), _gatewaySoftRestartCountTaskTokenSource.Token).ContinueWith(_ =>
+            {
+                if (_isDisposeCalled)
                 {
+                    // We are in charge of disposing the token source
+                    _gatewaySoftRestartCountTaskTokenSource?.Dispose();
                     return;
                 }
 
