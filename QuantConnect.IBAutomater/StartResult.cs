@@ -93,7 +93,7 @@ namespace QuantConnect.IBAutomater
         UnknownMessageWindowDetected,
 
         /// <summary>
-        /// The IBGateway soft restart timed out but will be automatically triggered again
+        /// The IBGateway soft restart timed out
         /// </summary>
         SoftRestartTimeout
     }
@@ -164,7 +164,7 @@ namespace QuantConnect.IBAutomater
                 },
                 {
                     ErrorCode.SoftRestartTimeout,
-                    "The IBGateway soft restart timed out but will be automatically triggered again."
+                    "The IBGateway soft restart timed out."
                 }
             };
 

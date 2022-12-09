@@ -89,7 +89,8 @@ namespace QuantConnect.IBAutomater
 
         private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
         private int _gatewaySoftRestartCount;
-        private readonly CancellationTokenSource _gatewaySoftRestartCountTaskTokenSource;
+        private bool _gatewaySoftRestartTimedOut;
+        private CancellationTokenSource _gatewaySoftRestartCountTaskTokenSource;
         private CancellationTokenSource _gatewaySoftRestartTokenSource;
 
         /// <summary>
@@ -204,6 +205,7 @@ namespace QuantConnect.IBAutomater
 
             // cancel the recurring restart count reset task
             StopGatewayRestartCountResetTask();
+            StopGatewayRestartTimeoutMonitor();
 
             _isDisposeCalled = true;
         }
@@ -1202,31 +1204,39 @@ namespace QuantConnect.IBAutomater
                     // The gateway should have restarted by now, if it didn't we will try to restart it again
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
 
-                    // Emit the restarted event with an error so the consumer knows we will try to restart again
-                    _lastStartResult = new StartResult(ErrorCode.SoftRestartTimeout);
-                    Restarted?.Invoke(this, new EventArgs());
-
-                    // Try to restart again
-                    lock (_locker)
+                    if (_gatewaySoftRestartTimedOut)
                     {
-                        if (File.Exists(restartFilePath))
-                        {
-                            File.Delete(restartFilePath);
-                        }
+                        // Restart timed out again, let's send an error
+                        _lastStartResult = new StartResult(ErrorCode.SoftRestartTimeout);
+                        Restarted?.Invoke(this, new EventArgs());
                     }
-                    SoftRestart();
+                    else
+                    {
+                        _gatewaySoftRestartTimedOut = true;
+                        // Try to restart again
+                        lock (_locker)
+                        {
+                            if (File.Exists(restartFilePath))
+                            {
+                                File.Delete(restartFilePath);
+                            }
+                        }
+
+                        SoftRestart();
+                    }
+                }
+                else
+                {
+                    _gatewaySoftRestartTimedOut = false;
                 }
             });
         }
 
         private void StopGatewayRestartTimeoutMonitor()
         {
-            lock (_gatewaySoftRestartTokenSource ?? new object())
+            if (!_isDisposeCalled && _gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
             {
-                if (_gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
-                {
-                    _gatewaySoftRestartTokenSource.Cancel();
-                }
+                _gatewaySoftRestartTokenSource.Cancel();
             }
         }
 
@@ -1239,6 +1249,12 @@ namespace QuantConnect.IBAutomater
             if (_isDisposeCalled)
             {
                 return;
+            }
+
+            lock (_gatewaySoftRestartCountTaskTokenSource ?? new object())
+            {
+                _gatewaySoftRestartCountTaskTokenSource?.Dispose();
+                _gatewaySoftRestartCountTaskTokenSource = new CancellationTokenSource();
             }
 
             Task.Delay(TimeSpan.FromHours(1), _gatewaySoftRestartCountTaskTokenSource.Token).ContinueWith(_ =>
@@ -1257,7 +1273,7 @@ namespace QuantConnect.IBAutomater
 
         private void StopGatewayRestartCountResetTask()
         {
-            if (!_isDisposeCalled && !_gatewaySoftRestartCountTaskTokenSource.IsCancellationRequested)
+            if (!_isDisposeCalled && _gatewaySoftRestartCountTaskTokenSource != null && !_gatewaySoftRestartCountTaskTokenSource.IsCancellationRequested)
             {
                 _gatewaySoftRestartCountTaskTokenSource.Cancel();
             }
