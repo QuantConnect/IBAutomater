@@ -90,7 +90,6 @@ namespace QuantConnect.IBAutomater
         private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
         private int _gatewaySoftRestartCount;
         private bool _gatewaySoftRestartTimedOut;
-        private CancellationTokenSource _gatewaySoftRestartCountTaskTokenSource;
         private CancellationTokenSource _gatewaySoftRestartTokenSource;
 
         /// <summary>
@@ -194,6 +193,8 @@ namespace QuantConnect.IBAutomater
             {
                 StopGatewayRestartTimeoutMonitor();
             };
+
+            StartGatewayRestartCountResetTask();
         }
 
         public void Dispose()
@@ -203,8 +204,6 @@ namespace QuantConnect.IBAutomater
                 return;
             }
 
-            // cancel the recurring restart count reset task
-            StopGatewayRestartCountResetTask();
             StopGatewayRestartTimeoutMonitor();
 
             _isDisposeCalled = true;
@@ -332,7 +331,6 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBAutomater process started - Id:{process.Id} - Name:{process.ProcessName} - InitializationTimeout:{_initializationTimeout}"));
 
                 _process = process;
-                StartGatewayRestartCountResetTask();
 
                 process.BeginErrorReadLine();
                 process.BeginOutputReadLine();
@@ -671,8 +669,6 @@ namespace QuantConnect.IBAutomater
                 // stop any restart threads
                 StopGatewayRestartTimeoutMonitor();
 
-                StopGatewayRestartCountResetTask();
-
                 // remove Java agent setting from IB configuration file
                 UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
             }
@@ -730,7 +726,7 @@ namespace QuantConnect.IBAutomater
                     var restartFilePath = Path.Combine(ibGatewayVersionPath, "restart");
                     File.WriteAllBytes(restartFilePath, Array.Empty<byte>());
 
-                    StartGatewayRestartTimeoutMonitor(restartFilePath);
+                    StartGatewayRestartTimeoutMonitor();
                 };
             });
         }
@@ -1187,7 +1183,7 @@ namespace QuantConnect.IBAutomater
             }
         }
 
-        private void StartGatewayRestartTimeoutMonitor(string restartFilePath)
+        private void StartGatewayRestartTimeoutMonitor()
         {
             // Detect rare gateway restart timeouts that could leave the gateway in a stale state
             Task.Delay(_maxExpectedGatewayRestartTime, _gatewaySoftRestartTokenSource.Token).ContinueWith(_ =>
@@ -1201,6 +1197,9 @@ namespace QuantConnect.IBAutomater
                 // Restart timeout
                 if (!_gatewaySoftRestartTokenSource.IsCancellationRequested)
                 {
+                    // Let's cancel just for the next SoftRestart call to be able to schedule another restart
+                    _gatewaySoftRestartTokenSource.Cancel();
+
                     // The gateway should have restarted by now, if it didn't we will try to restart it again
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
 
@@ -1213,15 +1212,8 @@ namespace QuantConnect.IBAutomater
                     else
                     {
                         _gatewaySoftRestartTimedOut = true;
-                        // Try to restart again
-                        lock (_locker)
-                        {
-                            if (File.Exists(restartFilePath))
-                            {
-                                File.Delete(restartFilePath);
-                            }
-                        }
 
+                        // Try to restart again
                         SoftRestart();
                     }
                 }
@@ -1246,37 +1238,11 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         private void StartGatewayRestartCountResetTask()
         {
-            if (_isDisposeCalled)
+            Task.Delay(TimeSpan.FromHours(1)).ContinueWith(_ =>
             {
-                return;
-            }
-
-            lock (_gatewaySoftRestartCountTaskTokenSource ?? new object())
-            {
-                _gatewaySoftRestartCountTaskTokenSource?.Dispose();
-                _gatewaySoftRestartCountTaskTokenSource = new CancellationTokenSource();
-            }
-
-            Task.Delay(TimeSpan.FromHours(1), _gatewaySoftRestartCountTaskTokenSource.Token).ContinueWith(_ =>
-            {
-                if (_isDisposeCalled)
-                {
-                    // We are in charge of disposing the token source
-                    _gatewaySoftRestartCountTaskTokenSource?.Dispose();
-                    return;
-                }
-
                 Interlocked.Exchange(ref _gatewaySoftRestartCount, 0);
                 StartGatewayRestartCountResetTask();
             });
-        }
-
-        private void StopGatewayRestartCountResetTask()
-        {
-            if (!_isDisposeCalled && _gatewaySoftRestartCountTaskTokenSource != null && !_gatewaySoftRestartCountTaskTokenSource.IsCancellationRequested)
-            {
-                _gatewaySoftRestartCountTaskTokenSource.Cancel();
-            }
         }
     }
 }
