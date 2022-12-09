@@ -90,7 +90,6 @@ namespace QuantConnect.IBAutomater
         private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
         private int _gatewaySoftRestartCount;
         private readonly CancellationTokenSource _gatewaySoftRestartCountTaskTokenSource;
-        private bool _gatewaySoftRestartTimedOut;
         private DateTime _lastSoftRestartedTime;
         private readonly object _lastSoftRestartedTimeLock = new object();
         private CancellationTokenSource _gatewaySoftRestartTokenSource;
@@ -1214,14 +1213,11 @@ namespace QuantConnect.IBAutomater
                     // The gateway should have restarted by now, if it didn't we will try to restart it again
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Soft restart timed out after {_maxExpectedGatewayRestartTime}. Triggering a new restart..."));
 
-                    if (_gatewaySoftRestartTimedOut)
-                    {
-                        // The restart timed out more than once in a row, let's send an error message
-                        // TODO: Send error message
-                        //OnMessage(new BrokerageMessageEvent(BrokerageMessageType.Error, "IBAutomaterRestartError", "Timeout restarting IB Gateway"));
-                    }
+                    // Emit the restarted event with an error so the consumer knows we will try to restart again
+                    _lastStartResult = new StartResult(ErrorCode.SoftRestartTimeout);
+                    Restarted?.Invoke(this, new EventArgs());
 
-                    _gatewaySoftRestartTimedOut = true;
+                    // Try to restart again
                     lock (_locker)
                     {
                         if (File.Exists(restartFilePath))
@@ -1230,11 +1226,6 @@ namespace QuantConnect.IBAutomater
                         }
                     }
                     SoftRestart();
-                }
-                else
-                {
-                    // The gateway restarted successfully
-                    _gatewaySoftRestartTimedOut = false;
                 }
             });
         }
