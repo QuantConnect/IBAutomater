@@ -434,8 +434,8 @@ namespace QuantConnect.IBAutomater
                     {
                         if (currentTimeout < maxTimeout)
                         {
-                            // double the timeout until we reach the max timeout
-                            currentTimeout *= 2;
+                            // increase the timeout until we reach the max timeout
+                            currentTimeout *= 1.05;
                             if (currentTimeout > maxTimeout)
                             {
                                 currentTimeout = maxTimeout;
