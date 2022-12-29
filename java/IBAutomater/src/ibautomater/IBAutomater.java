@@ -69,7 +69,7 @@ public final class IBAutomater {
 
         try
         {
-            this.printWriter = new PrintWriter(new FileWriter("IBAutomater.log"), true);
+            this.printWriter = new PrintWriter(new FileWriter("IBAutomater.log", true), true);
         }
         catch (IOException exception)
         {
