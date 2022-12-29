@@ -83,7 +83,9 @@ namespace QuantConnect.IBAutomater
         private bool _isWithinScheduledServerResetTimesLastValue;
 
         private string _ibGatewayLogFileName;
-        private readonly Thread _logReader;
+        private int _logLinesRead;
+        private readonly Timer _timerLogReader;
+        private readonly object _logLocker = new object();
 
         private static readonly TimeSpan _maxExpectedGatewayRestartTime = TimeSpan.FromMinutes(10);
         private int _gatewaySoftRestartCount;
@@ -184,8 +186,8 @@ namespace QuantConnect.IBAutomater
             _portNumber = portNumber;
             _exportIbGatewayLogs = exportIbGatewayLogs;
 
-            _logReader = new Thread(LogReaderTimerCallback) { IsBackground = true, Name = "IBAutomaterLogReader" };
-            _logReader.Start();
+            _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
+
 
             Restarted += (sender, e) =>
             {
@@ -255,13 +257,19 @@ namespace QuantConnect.IBAutomater
                 UpdateIbGatewayIniFile();
                 UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
 
-                var logFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
-                if (string.IsNullOrEmpty(_ibGatewayLogFileName) && File.Exists(logFileName))
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
+
+                _ibGatewayLogFileName = Path.Combine(ibGatewayVersionPath, "IBAutomater.log");
+
+                lock (_logLocker)
                 {
-                    // the first time we start let's delete it and start fresh
-                    File.Delete(logFileName);
+                    if (File.Exists(_ibGatewayLogFileName))
+                    {
+                        File.Delete(_ibGatewayLogFileName);
+                    }
                 }
-                _ibGatewayLogFileName = logFileName;
+
+                _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
                 string fileName;
                 string arguments;
@@ -293,14 +301,14 @@ namespace QuantConnect.IBAutomater
                 {
                     if (e.Data != null)
                     {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("OutputDataReceived: " + e.Data.Replace(_password, "***")));
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data.Replace(_password, "***")));
                     }
                 };
                 process.ErrorDataReceived += (s, e) =>
                 {
                     if (e.Data != null)
                     {
-                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs("ErrorDataReceived: " + e.Data.Replace(_password, "***")));
+                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data.Replace(_password, "***")));
                     }
                 };
                 process.Exited += OnProcessExited;
@@ -381,79 +389,54 @@ namespace QuantConnect.IBAutomater
 
         private void LogReaderTimerCallback(object _)
         {
-            var minTimeout = TimeSpan.FromSeconds(2);
-            var maxTimeout = minTimeout * 10;
-            var currentTimeout = minTimeout;
-
-            StreamReader reader = null;
-            Action cleanupReader = () =>
+            try
             {
-                try
+                lock (_logLocker)
                 {
-                    // shouldn't happen but just in case, we don't delete the log file
-                    reader?.Dispose();
-                }
-                catch
-                {
-                }
-                reader = null;
-            };
-            while (true)
-            {
-                Thread.Sleep(currentTimeout);
-
-                try
-                {
-                    if(reader == null)
+                    if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
                     {
-                        if (string.IsNullOrWhiteSpace(_ibGatewayLogFileName) || !File.Exists(_ibGatewayLogFileName))
+                        return;
+                    }
+
+                    using (var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        fileStream.Seek(0, SeekOrigin.Begin);
+
+                        using (var reader = new StreamReader(fileStream))
                         {
-                            // nothing to do
-                            continue;
-                        }
-
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Creating log file stream {_ibGatewayLogFileName}"));
-                        var fileStream = new FileStream(_ibGatewayLogFileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                        reader = new StreamReader(fileStream);
-                    }
-
-                    var readNewData = false;
-                    string line;
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        readNewData = true;
-                        OnProcessOutputDataReceived(line);
-                    }
-
-                    if (readNewData)
-                    {
-                        // reset
-                        currentTimeout = minTimeout;
-                    }
-                    else
-                    {
-                        if (currentTimeout < maxTimeout)
-                        {
-                            // increase the timeout until we reach the max timeout
-                            currentTimeout *= 1.05;
-                            if (currentTimeout > maxTimeout)
+                            var lines = new List<string>();
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
                             {
-                                currentTimeout = maxTimeout;
+                                lines.Add(line);
+                            }
+
+                            var totalLines = lines.Count;
+                            if (totalLines < _logLinesRead)
+                            {
+                                // log file was rewritten by a restart of IBGateway
+                                _logLinesRead = 0;
+                            }
+
+                            var newLinesCount = totalLines - _logLinesRead;
+                            var newLines = lines.Skip(_logLinesRead).Take(newLinesCount);
+                            _logLinesRead = totalLines;
+
+                            if (newLinesCount > 0)
+                            {
+                                foreach (var newLine in newLines)
+                                {
+                                    OnProcessOutputDataReceived(newLine);
+                                }
                             }
                         }
-
-                        if (!File.Exists(_ibGatewayLogFileName))
-                        {
-                            cleanupReader();
-                        }
                     }
                 }
-                catch (Exception exception)
-                {
-                    cleanupReader();
-                    var message = $"IBAutomater error in timer - Message: {exception.Message}";
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
-                }
+            }
+            catch (Exception exception)
+            {
+                var message = $"IBAutomater error in timer - Message: {exception.Message}";
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
             }
         }
 
@@ -648,6 +631,8 @@ namespace QuantConnect.IBAutomater
                 {
                     return;
                 }
+
+                _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
                 if (IsWindows)
                 {
