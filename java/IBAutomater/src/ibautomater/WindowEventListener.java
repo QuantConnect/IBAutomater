@@ -201,7 +201,10 @@ public class WindowEventListener implements AWTEventListener {
 
         if (title == null ||
             !Common.isFrame(window) ||
-            (!title.equals("IB Gateway") &&
+            (
+            // v1023
+            !title.equals("IBKR Gateway") &&
+            !title.equals("IB Gateway") &&
              // v981
              !title.equals("Interactive Brokers Gateway"))) {
             return false;
