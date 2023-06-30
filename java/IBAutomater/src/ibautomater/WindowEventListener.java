@@ -542,17 +542,18 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String title = Common.getTitle(window);
-        if (title != null) {
-            return false;
-        }
-
+        String message;
         JOptionPane optionPane = Common.getOptionPane(window, "is no longer supported");
         if (optionPane == null) {
-            return false;
+            message = GetWindowText(window).toLowerCase().replaceAll("\\<.*?>","").replace("\n", " ");
+            if (!message.contains("minimum supported version") && !message.contains("will be desupported on")) {
+                return false;
+            }
+        }
+        else {
+            message = optionPane.getMessage().toString().toLowerCase().replaceAll("\\<.*?>","").replace("\n", " ");
         }
 
-        String message = optionPane.getMessage().toString().replaceAll("\\<.*?>","").replace("\n", " ");
         this.automater.logMessage("IBGateway message: [" + message + "]");
 
         String buttonText = "OK";
@@ -1364,6 +1365,7 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Click button: [OK]");
             button.doClick();
         }
+        this.automater.logMessage("Finished exporting logs, closing export logs window");
 
         String buttonText = "Cancel";
         JButton cancelButton = Common.getButton(this.viewLogsWindow, buttonText);
@@ -1458,6 +1460,14 @@ public class WindowEventListener implements AWTEventListener {
      */
     private void SaveIBLogs()
     {
+        if (this.viewLogsWindow != null) {
+            // we are already exporting the logs, let's not request it again because we keep state through 'this.viewLogsWindow'
+            // trying to export twice at the same time will overrite this variable and the export window will remain open.
+            // seen this happen when we detect an unknown window at start where we are already storing the logs
+            this.automater.logMessage("Skip export gateway logs request, it's already being executed!");
+            return;
+        }
+
         Window window = this.automater.getMainWindow();
         if (window != null) {
             JMenuItem menuItem = Common.getMenuItem(window, "File", "Gateway Logs");
