@@ -204,9 +204,12 @@ namespace QuantConnect.IBAutomater
                 return;
             }
 
+            _isDisposeCalled = true;
+
             StopGatewayRestartTimeoutMonitor();
 
-            _isDisposeCalled = true;
+            // remove Java agent setting from IB configuration file
+            UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
         }
 
         /// <summary>
@@ -640,7 +643,7 @@ namespace QuantConnect.IBAutomater
                     {
                         try
                         {
-                            if (process.MainWindowTitle.ToLower().Contains("ib gateway"))
+                            if (process.MainWindowTitle.ToLower().Contains("gateway"))
                             {
                                 process.Kill();
                             }
@@ -668,9 +671,6 @@ namespace QuantConnect.IBAutomater
 
                 // stop any restart threads
                 StopGatewayRestartTimeoutMonitor();
-
-                // remove Java agent setting from IB configuration file
-                UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
             }
         }
 
