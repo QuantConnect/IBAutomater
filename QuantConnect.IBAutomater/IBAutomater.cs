@@ -258,7 +258,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 UpdateIbGatewayIniFile();
-                UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
+                var javaAgent = UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
@@ -284,7 +284,7 @@ namespace QuantConnect.IBAutomater
                 else
                 {
                     fileName = "IBAutomater.sh";
-                    arguments = ibGatewayVersionPath;
+                    arguments = $"{ibGatewayVersionPath} {javaAgent}";
                 }
 
                 var process = new Process
@@ -300,20 +300,8 @@ namespace QuantConnect.IBAutomater
                     EnableRaisingEvents = true
                 };
 
-                process.OutputDataReceived += (s, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data.Replace(_password, "***")));
-                    }
-                };
-                process.ErrorDataReceived += (s, e) =>
-                {
-                    if (e.Data != null)
-                    {
-                        ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data.Replace(_password, "***")));
-                    }
-                };
+                process.OutputDataReceived += SendTraceLog;
+                process.ErrorDataReceived += SendErrorLog;
                 process.Exited += OnProcessExited;
 
                 try
@@ -537,7 +525,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // daily restart with no authentication required
-                else if (text.Contains("Restart in progress"))
+                else if (text.Contains("Restart in progress") || text.Contains("The application will automatically restart in"))
                 {
                     _isRestartInProgress = true;
                 }
@@ -1045,7 +1033,7 @@ namespace QuantConnect.IBAutomater
             }
         }
 
-        private void UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent)
+        private string UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent)
         {
             // update IBGateway configuration file with Java agent entry
             var ibGatewayConfigFile = $"{ibGatewayVersionPath}/ibgateway.vmoptions";
@@ -1055,33 +1043,37 @@ namespace QuantConnect.IBAutomater
             var javaAgentConfigFileName = Path.Combine(jarPath, "IBAutomater.json");
             var javaAgentConfig = $"-javaagent:{jarPath}/IBAutomater.jar={javaAgentConfigFileName}";
 
-            var lines = File.ReadAllLines(ibGatewayConfigFile).ToList();
-            var existing = false;
-            for (var i = 0; i < lines.Count; i++)
+            // for linux we will use an env, since the options file is not respected
+            if (!IsLinux)
             {
-                var line = lines[i];
-
-                if (line.StartsWith("-javaagent:") && line.Contains("IBAutomater"))
+                var lines = File.ReadAllLines(ibGatewayConfigFile).ToList();
+                var existing = false;
+                for (var i = 0; i < lines.Count; i++)
                 {
-                    if (enableJavaAgent)
-                    {
-                        lines[i] = javaAgentConfig;
-                    }
-                    else
-                    {
-                        lines.RemoveAt(i--);
-                    }
+                    var line = lines[i];
 
-                    existing = true;
+                    if (line.StartsWith("-javaagent:") && line.Contains("IBAutomater"))
+                    {
+                        if (enableJavaAgent)
+                        {
+                            lines[i] = javaAgentConfig;
+                        }
+                        else
+                        {
+                            lines.RemoveAt(i--);
+                        }
+
+                        existing = true;
+                    }
                 }
-            }
 
-            if (enableJavaAgent && !existing)
-            {
-                lines.Add(javaAgentConfig);
-            }
+                if (enableJavaAgent && !existing)
+                {
+                    lines.Add(javaAgentConfig);
+                }
 
-            File.WriteAllLines(ibGatewayConfigFile, lines);
+                File.WriteAllLines(ibGatewayConfigFile, lines);
+            }
 
             if (enableJavaAgent)
             {
@@ -1091,6 +1083,8 @@ namespace QuantConnect.IBAutomater
             {
                 File.Delete(javaAgentConfigFileName);
             }
+
+            return javaAgentConfig;
         }
 
         private static int GetProcessExitCode(Process process)
@@ -1166,13 +1160,17 @@ namespace QuantConnect.IBAutomater
             }
             else if (processes.Length > 1)
             {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Found multiple processes named: '{processName}'"));
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Found multiple processes named: '{processName}'. Processes: [{string.Join(",", processes.Select(p => $"pid:{p.Id}\ncmdline:\n{GetProcessArguments(p)}"))}]"));
 
                 // in linux there's a short lived java launcher process but it doesn't have our jar as argument
                 var filteredProcesses = processes.Where(p => GetProcessArguments(p).Contains("IBAutomater.jar", StringComparison.InvariantCultureIgnoreCase)).ToList();
                 if (filteredProcesses.Count != 1)
                 {
-                    return null;
+                    filteredProcesses = processes.Where(p => GetProcessArguments(p).Contains("-Drestart=", StringComparison.InvariantCultureIgnoreCase)).ToList();
+                    if (filteredProcesses.Count != 1)
+                    {
+                        return null;
+                    }
                 }
                 return filteredProcesses.Single();
             }
@@ -1243,6 +1241,30 @@ namespace QuantConnect.IBAutomater
                 Interlocked.Exchange(ref _gatewaySoftRestartCount, 0);
                 StartGatewayRestartCountResetTask();
             });
+        }
+
+        private void SendErrorLog(object sender, DataReceivedEventArgs e)
+        {
+            if (e.Data != null)
+            {
+                if(e.Data.Contains("JAVA_TOOL_OPTIONS"))
+                {
+                    // this is not an error
+                    SendTraceLog(sender, e);
+                }
+                else
+                {
+                    ErrorDataReceived?.Invoke(this, new ErrorDataReceivedEventArgs(e.Data.Replace(_password, "***")));
+                }
+            }
+        }
+
+        private void SendTraceLog(object sender, DataReceivedEventArgs e)
+        {
+            if (e.Data != null)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(e.Data.Replace(_password, "***")));
+            }
         }
     }
 }
