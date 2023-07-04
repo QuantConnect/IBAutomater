@@ -1,6 +1,7 @@
 #!/bin/bash
 
 export JAVA_TOOL_OPTIONS=$2
+
 ps -AFH
 
 pkill -9 Xvfb
