@@ -839,7 +839,7 @@ namespace QuantConnect.IBAutomater
         /// Returns whether the IBGateway is running
         /// </summary>
         /// <returns>true if the IBGateway is running</returns>
-        private bool IsRunning()
+        public bool IsRunning()
         {
             lock (_locker)
             {
