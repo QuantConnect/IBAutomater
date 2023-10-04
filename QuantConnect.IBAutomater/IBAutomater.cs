@@ -560,7 +560,10 @@ namespace QuantConnect.IBAutomater
                 {
                     TraceIbLauncherLogFile();
 
-                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout);
+                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
+
+                    // fire Exited event so the client can reconnect or die
+                    Exited?.Invoke(this, new ExitedEventArgs(0));
                     return;
                 }
 
@@ -577,7 +580,10 @@ namespace QuantConnect.IBAutomater
 
                         TraceIbLauncherLogFile();
 
-                        _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound);
+                        _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound, "IBGateway process was not found after restart");
+
+                        // fire Exited event so the client can reconnect or die
+                        Exited?.Invoke(this, new ExitedEventArgs(0));
                     }
                     else
                     {
@@ -839,7 +845,7 @@ namespace QuantConnect.IBAutomater
         /// Returns whether the IBGateway is running
         /// </summary>
         /// <returns>true if the IBGateway is running</returns>
-        private bool IsRunning()
+        public bool IsRunning()
         {
             lock (_locker)
             {
