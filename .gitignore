@@ -331,4 +331,5 @@ ASALocalRun/
 /java/IBAutomater/nbproject/private/
 /java/IBAutomater/build/
 /java/IBAutomater/dist/
+/java/IBAutomater/out/
 *.jar
