@@ -529,7 +529,7 @@ public class WindowEventListener implements AWTEventListener {
                         break;
                     }
 
-                    Thread.sleep(1000 * 10);
+                    Thread.sleep(1000);
                 } catch (InterruptedException ex) {
                     // stopped
                 }
