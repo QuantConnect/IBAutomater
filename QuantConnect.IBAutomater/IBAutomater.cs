@@ -639,10 +639,13 @@ namespace QuantConnect.IBAutomater
                 StopGatewayRestartTimeoutMonitor();
 
                 // then we wait for the process to exit.
-                // we'll wait 10 seconds, since it will take up to 1 second for the java automater to receive the signal
-                // plus a 9 second buffer for the gateway to exit.
-                if (!_process.WaitForExit(10000))
+                // we'll wait 15 seconds, since it will take up to 1 second for the java automater to receive the signal
+                // plus a 14 second buffer for the gateway to exit.
+                if (!_process.WaitForExit(15000))
                 {
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                        "Timeout waiting for the IBAutomater to shutdown the IB Gateway. Proceeding to kill the process."));
+
                     // if the process does not exit after a timeout, then we kill it
                     if (IsWindows)
                     {
