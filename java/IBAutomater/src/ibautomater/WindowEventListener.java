@@ -445,6 +445,7 @@ public class WindowEventListener implements AWTEventListener {
 
             RunInitializationUsingThread();
             RunRestartWatcher();
+            RunShutdownWatcher();
 
             return true;
         }
@@ -488,6 +489,47 @@ public class WindowEventListener implements AWTEventListener {
                     }
 
                     Thread.sleep(1000 * 10);
+                } catch (InterruptedException ex) {
+                    // stopped
+                }
+            }
+        }).start();
+    }
+
+    /**
+     * Will start a thread which will get the main window and trigger shutdown
+     */
+    private void RunShutdownUsingThread() {
+        new Thread(()-> {
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<Window> future = executor.submit(new ShutdownTask(this.automater));
+            try {
+                future.get(30, TimeUnit.SECONDS);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                this.automater.logError(e);
+            }
+            executor.shutdown();
+        }).start();
+    }
+
+    /**
+     * Will start a thread which will monitor for and trigger shutdown
+     */
+    @SuppressWarnings("SleepWhileInLoop")
+    private void RunShutdownWatcher() {
+        new Thread(()-> {
+            this.automater.logMessage("Start running shutdown watcher thread...");
+            while (true) {
+                try {
+                    File file = new File("shutdown");
+                    if (file.exists()) {
+                        file.delete();
+                        this.automater.logMessage("Shutdown request detected. Shutting down...");
+                        RunShutdownUsingThread();
+                        break;
+                    }
+
+                    Thread.sleep(1000);
                 } catch (InterruptedException ex) {
                     // stopped
                 }

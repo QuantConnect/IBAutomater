@@ -631,40 +631,57 @@ namespace QuantConnect.IBAutomater
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
-                if (IsWindows)
+                var ibGatewayVersionPath = GetIbGatewayVersionPath();
+                var shutdownFilePath = Path.Combine(ibGatewayVersionPath, "shutdown");
+                File.WriteAllBytes(shutdownFilePath, Array.Empty<byte>());
+
+                // stop any restart threads
+                StopGatewayRestartTimeoutMonitor();
+
+                // then we wait for the process to exit.
+                // we'll wait 15 seconds, since it will take up to 1 second for the java automater to receive the signal
+                // plus a 14 second buffer for the gateway to exit.
+                if (!_process.WaitForExit(15000))
                 {
-                    foreach (var process in Process.GetProcesses())
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                        "Timeout waiting for the IBAutomater to shutdown the IB Gateway. Proceeding to kill the process."));
+
+                    // if the process does not exit after a timeout, then we kill it
+                    if (IsWindows)
+                    {
+                        foreach (var process in Process.GetProcesses())
+                        {
+                            try
+                            {
+                                if (process.MainWindowTitle.ToLower().Contains("gateway"))
+                                {
+                                    process.Kill();
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                // ignored
+                            }
+                        }
+                    }
+                    else
                     {
                         try
                         {
-                            if (process.MainWindowTitle.ToLower().Contains("gateway"))
-                            {
-                                process.Kill();
-                            }
+                            Process.Start("pkill", "java");
+                            Process.Start("pkill", "Xvfb");
                         }
                         catch (Exception)
                         {
                             // ignored
                         }
                     }
-                }
-                else
-                {
-                    try
-                    {
-                        Process.Start("pkill", "java");
-                        Process.Start("pkill", "Xvfb");
-                    }
-                    catch (Exception)
-                    {
-                        // ignored
-                    }
+
+                    // wait for the process to exit
+                    _process.WaitForExit();
                 }
 
                 _process = null;
-
-                // stop any restart threads
-                StopGatewayRestartTimeoutMonitor();
             }
         }
 
@@ -759,37 +776,37 @@ namespace QuantConnect.IBAutomater
                 switch (_ibServerRegion)
                 {
                     case Region.Europe:
-                    {
-                        // Saturday - Thursday: 05:45 - 06:45 CET
-                        var euTime = utcTime.ConvertFromUtc(TimeZoneZurich);
-                        var euTimeOfDay = euTime.TimeOfDay;
-                        result = euTimeOfDay > new TimeSpan(5, 30, 0) && euTimeOfDay < new TimeSpan(7, 0, 0);
-                    }
+                        {
+                            // Saturday - Thursday: 05:45 - 06:45 CET
+                            var euTime = utcTime.ConvertFromUtc(TimeZoneZurich);
+                            var euTimeOfDay = euTime.TimeOfDay;
+                            result = euTimeOfDay > new TimeSpan(5, 30, 0) && euTimeOfDay < new TimeSpan(7, 0, 0);
+                        }
                         break;
 
                     case Region.Asia:
-                    {
-                        // Saturday - Thursday: First reset: 16:30 - 17:00 ET
-                        if (newYorkTimeOfDay > new TimeSpan(16, 15, 0) && newYorkTimeOfDay < new TimeSpan(17, 15, 0))
                         {
-                            result = true;
+                            // Saturday - Thursday: First reset: 16:30 - 17:00 ET
+                            if (newYorkTimeOfDay > new TimeSpan(16, 15, 0) && newYorkTimeOfDay < new TimeSpan(17, 15, 0))
+                            {
+                                result = true;
+                            }
+                            else
+                            {
+                                // Saturday - Thursday: Second reset: 20:15 - 21:00 HKT
+                                var hkTime = utcTime.ConvertFromUtc(TimeZoneHongKong);
+                                var hkTimeOfDay = hkTime.TimeOfDay;
+                                result = hkTimeOfDay > new TimeSpan(20, 0, 0) && hkTimeOfDay < new TimeSpan(21, 15, 0);
+                            }
                         }
-                        else
-                        {
-                            // Saturday - Thursday: Second reset: 20:15 - 21:00 HKT
-                            var hkTime = utcTime.ConvertFromUtc(TimeZoneHongKong);
-                            var hkTimeOfDay = hkTime.TimeOfDay;
-                            result = hkTimeOfDay > new TimeSpan(20, 0, 0) && hkTimeOfDay < new TimeSpan(21, 15, 0);
-                        }
-                    }
                         break;
 
                     case Region.America:
                     default:
-                    {
-                        // Saturday - Thursday: 23:45 - 00:45 ET
-                        result = newYorkTimeOfDay > new TimeSpan(23, 30, 0) || newYorkTimeOfDay < new TimeSpan(1, 0, 0);
-                    }
+                        {
+                            // Saturday - Thursday: 23:45 - 00:45 ET
+                            result = newYorkTimeOfDay > new TimeSpan(23, 30, 0) || newYorkTimeOfDay < new TimeSpan(1, 0, 0);
+                        }
                         break;
                 }
             }
@@ -1253,7 +1270,7 @@ namespace QuantConnect.IBAutomater
         {
             if (e.Data != null)
             {
-                if(e.Data.Contains("JAVA_TOOL_OPTIONS"))
+                if (e.Data.Contains("JAVA_TOOL_OPTIONS"))
                 {
                     // this is not an error
                     SendTraceLog(sender, e);
