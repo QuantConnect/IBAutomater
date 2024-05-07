@@ -269,6 +269,11 @@ public class WindowEventListener implements AWTEventListener {
             throw new Exception("Login button not found");
         }
 
+        if (!loginButton.isEnabled()) {
+            this.automater.logMessage("Login failed: invalid characters in credentials");
+            return false;
+        }
+
         this.automater.logMessage("Click button: [" + loginButtonText + "]");
         loginButton.doClick();
 

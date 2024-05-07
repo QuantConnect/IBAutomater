@@ -438,9 +438,10 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(text));
 
                 // login failed
-                if (text.Contains("Login failed"))
+                if (text.Contains("Login failed", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    if (!IsWithinScheduledServerResetTimes())
+                    if (text.Contains("invalid characters in credentials", StringComparison.InvariantCultureIgnoreCase)
+                        || !IsWithinScheduledServerResetTimes())
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailed);
                     }
@@ -449,16 +450,16 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // an existing session was detected
-                else if (text.Contains("Existing session detected"))
+                else if (text.Contains("Existing session detected", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _lastStartResult = new StartResult(ErrorCode.ExistingSessionDetected);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // a security dialog (2FA) was detected by IBAutomater
-                else if (text.Contains("Second Factor Authentication"))
+                else if (text.Contains("Second Factor Authentication", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    if (text.Contains("[WINDOW_OPENED]"))
+                    if (text.Contains("[WINDOW_OPENED]", StringComparison.InvariantCultureIgnoreCase))
                     {
                         // waiting for 2FA confirmation on IBKR mobile app
                         const string message = "Waiting for 2FA confirmation on IBKR mobile app (to be confirmed within 3 minutes).";
@@ -467,7 +468,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // 2FA timed out for the maximum number of attempts
-                else if (text.Contains("2FA maximum attempts reached"))
+                else if (text.Contains("2FA maximum attempts reached", StringComparison.InvariantCultureIgnoreCase))
                 {
                     const string message = "IB Automater 2FA timeout.";
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
@@ -477,21 +478,22 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // a security dialog (code card) was detected by IBAutomater
-                else if (text.Contains("Security Code Card Authentication") || text.Contains("Enter security code"))
+                else if (text.Contains("Security Code Card Authentication", StringComparison.InvariantCultureIgnoreCase)
+                    || text.Contains("Enter security code", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _lastStartResult = new StartResult(ErrorCode.SecurityDialogDetected);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // the IBGateway version is no longer supported
-                else if (text.Contains("is no longer supported"))
+                else if (text.Contains("is no longer supported", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _lastStartResult = new StartResult(ErrorCode.UnsupportedVersion);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // a Java exception was thrown
-                if (text.StartsWith("Exception"))
+                if (text.StartsWith("Exception", StringComparison.InvariantCultureIgnoreCase))
                 {
                     TraceIbLauncherLogFile();
 
@@ -500,14 +502,14 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // API support is not available for accounts that support free trading
-                else if (text.Contains("API support is not available"))
+                else if (text.Contains("API support is not available", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _lastStartResult = new StartResult(ErrorCode.ApiSupportNotAvailable);
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // an unknown message window was detected
-                else if (text.StartsWith("Unknown message window detected"))
+                else if (text.StartsWith("Unknown message window detected", StringComparison.InvariantCultureIgnoreCase))
                 {
                     TraceIbLauncherLogFile();
 
@@ -516,7 +518,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // initialization completed
-                else if (text.Contains("Configuration settings updated"))
+                else if (text.Contains("Configuration settings updated", StringComparison.InvariantCultureIgnoreCase))
                 {
                     // load server name and region
                     LoadIbServerInformation();
@@ -525,20 +527,21 @@ namespace QuantConnect.IBAutomater
                 }
 
                 // daily restart with no authentication required
-                else if (text.Contains("Restart in progress") || text.Contains("The application will automatically restart in"))
+                else if (text.Contains("Restart in progress", StringComparison.InvariantCultureIgnoreCase)
+                    || text.Contains("The application will automatically restart in", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _isRestartInProgress = true;
                 }
 
                 // weekly restart with full authentication
-                else if (text.Contains("Auto-restart token expired"))
+                else if (text.Contains("Auto-restart token expired", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _isRestartInProgress = false;
                     _ibAutomaterInitializeEvent.Set();
                 }
 
                 // authentication/connection in progress
-                if (text.Contains("Window event:"))
+                if (text.Contains("Window event:", StringComparison.InvariantCultureIgnoreCase))
                 {
                     _isAuthenticating = text.Contains("Authenticating", StringComparison.InvariantCultureIgnoreCase) ||
                                         text.Contains("Connecting to server", StringComparison.InvariantCultureIgnoreCase) ||
