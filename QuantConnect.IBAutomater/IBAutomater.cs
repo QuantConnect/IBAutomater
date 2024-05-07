@@ -440,7 +440,7 @@ namespace QuantConnect.IBAutomater
                 // login failed
                 if (text.Contains("Login failed"))
                 {
-                    if (!IsWithinScheduledServerResetTimes())
+                    if (text.Contains("invalid characters in credentials") || !IsWithinScheduledServerResetTimes())
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailed);
                     }
