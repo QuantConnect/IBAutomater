@@ -274,7 +274,14 @@ namespace QuantConnect.IBAutomater
                 {
                     if (File.Exists(_ibGatewayLogFileName))
                     {
-                        File.Delete(_ibGatewayLogFileName);
+                        try
+                        {
+                            File.Delete(_ibGatewayLogFileName);
+                        }
+                        catch (IOException ex)
+                        {
+                            
+                        }
                     }
                 }
 
