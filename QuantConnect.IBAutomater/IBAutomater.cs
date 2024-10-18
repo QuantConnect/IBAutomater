@@ -221,6 +221,12 @@ namespace QuantConnect.IBAutomater
         {
             lock (_locker)
             {
+                var ibAutomaterPath = "IBAutomater.sh";
+                if (!File.Exists(ibAutomaterPath))
+                {
+                    ibAutomaterPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), ibAutomaterPath);
+                }
+
                 if (_lastStartResult.HasError)
                 {
                     // IBAutomater errors are unrecoverable
@@ -239,7 +245,7 @@ namespace QuantConnect.IBAutomater
                 {
                     // need permission for execution
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Setting execute permissions on IBAutomater.sh"));
-                    ExecuteProcessAndWaitForExit("chmod", "+x IBAutomater.sh");
+                    ExecuteProcessAndWaitForExit("chmod", $"+x {ibAutomaterPath}");
                 }
 
                 var ibGatewayVersionPath = GetIbGatewayVersionPath();
@@ -283,7 +289,7 @@ namespace QuantConnect.IBAutomater
                 }
                 else
                 {
-                    fileName = "IBAutomater.sh";
+                    fileName = ibAutomaterPath;
                     arguments = $"{ibGatewayVersionPath} {javaAgent}";
                 }
 
