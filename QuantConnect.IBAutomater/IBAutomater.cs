@@ -313,7 +313,6 @@ namespace QuantConnect.IBAutomater
                 else
                 {
                     fileName = ibAutomaterPath;
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"\n\n -----> PROGRAM PATH: {ibGatewayVersionPath}"));
                     arguments = $"{ibGatewayExecutablePath} {javaAgent} {arguments}";
                 }
 
@@ -331,11 +330,6 @@ namespace QuantConnect.IBAutomater
                         var sessionFolderName = Directory.GetParent(autoRestartFilePath).Name;
                         arguments += $" -J-DCHANNEL=stable -J-DchannelChanged=false -J-Drestart={sessionFolderName}";
                     }
-                }
-
-                if (IsWindows)
-                {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"LAUNCHING IB GATEWAY {fileName}"));
                 }
 
                 var process = new Process
@@ -388,8 +382,6 @@ namespace QuantConnect.IBAutomater
                     if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                     {
                         var processName = IsWindows ? Path.GetFileNameWithoutExtension(fileName) : "java";
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"TRYING TPO FIND PROCESS BY NAME {processName}"));
-
                         var p = Process.GetProcessesByName(processName).FirstOrDefault();
                         OutputDataReceived?.Invoke(this,
                             p != null
