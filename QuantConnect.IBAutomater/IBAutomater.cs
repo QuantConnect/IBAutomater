@@ -48,7 +48,6 @@ namespace QuantConnect.IBAutomater
         private Process _process;
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
-        private readonly AutoResetEvent _ibAutomaterDailyRestartEvent = new AutoResetEvent(false);
         private bool _isRestartInProgress;
         private bool _isFirstStart = true;
         private volatile bool _isAuthenticating;
@@ -398,8 +397,6 @@ namespace QuantConnect.IBAutomater
                                 : new OutputDataReceivedEventArgs($"IBGateway process not found: {processName}"));
 
                         message = "IB Automater initialized.";
-
-                        _ibAutomaterDailyRestartEvent.Set();
                     }
                     else
                     {
@@ -611,16 +608,13 @@ namespace QuantConnect.IBAutomater
 
             if (_isRestartInProgress)
             {
-                // We need to start the IBGateway again manually, we don't let it auto-restart
-                // so that we can make sure the automater java agent is attached to the new process.
-                // Delay the start to to give the gateway time to try to restart on its own
-                // (will fail since the executable file name was changed)
-                Task.Delay(5000).ContinueWith(_ => Start(false, true));
-
-                _ibAutomaterDailyRestartEvent.Reset();
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
 
-                if (!_ibAutomaterDailyRestartEvent.WaitOne(_initializationTimeout))
+                // We need to start the IBGateway again manually, we don't let it auto-restart
+                // so that we can make sure the automater java agent is attached to the new process.
+                var startResult = Start(false, true);
+
+                if (startResult.HasError)
                 {
                     TraceIbLauncherLogFile();
 
@@ -635,18 +629,9 @@ namespace QuantConnect.IBAutomater
                 {
                     _isRestartInProgress = false;
 
-                    if (_lastStartResult != StartResult.Success)
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway auto-restart failed: {_lastStartResult.ErrorMessage}"));
-                        // fire Exited event so the client can reconnect or die
-                        Exited?.Invoke(this, new ExitedEventArgs(0));
-                    }
-                    else
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater restarted and initialized."));
-                        // fire Restarted event so the client can reconnect only (without starting IBGateway)
-                        Restarted?.Invoke(this, new EventArgs());
-                    }
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater restarted and initialized."));
+                    // fire Restarted event so the client can reconnect only (without starting IBGateway)
+                    Restarted?.Invoke(this, new EventArgs());
                 }
                 else
                 {
