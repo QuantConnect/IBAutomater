@@ -26,6 +26,7 @@ public class Settings {
     private final String tradingMode;
     private final int portNumber;
     private final boolean exportIbGatewayLogs;
+    private final boolean restarting;
 
     /**
      * Creates a new instance of the {@link Settings} class.
@@ -36,13 +37,16 @@ public class Settings {
      * @param portNumber The socket port number to be used for API connections
      * @param exportIbGatewayLogs If true, IBGateway logs will be exported at predefined times
      * (currently at startup and when unknown windows are detected)
+     * @param restarting If true, the automater will assume the gateway is starting after a 
+     * soft daily restart and won't try to log in
      */
-    public Settings(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
+    public Settings(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs, boolean restarting) {
         this.userName = userName;
         this.password = password;
         this.tradingMode = tradingMode;
         this.portNumber = portNumber;
         this.exportIbGatewayLogs = exportIbGatewayLogs;
+        this.restarting = restarting;
     }
 
     /**
@@ -88,6 +92,15 @@ public class Settings {
      */
     public boolean getExportIbGatewayLogs() {
         return this.exportIbGatewayLogs;
+    }
+
+    /**
+     * Gets whether IBGateway is starting after a soft daily restart
+     *
+     * @return Returns true if IBGateway is starting after a soft daily restart
+     */
+    public boolean getRestarting() {
+        return this.restarting;
     }
 }
 

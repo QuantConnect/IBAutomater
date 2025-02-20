@@ -50,8 +50,9 @@ public final class IBAutomater {
         String tradingMode = argValues[2];
         int portNumber = Integer.parseInt(argValues[3]);
         boolean exportIbGatewayLogs = Boolean.parseBoolean(argValues[4]);
+        boolean restarting = Boolean.parseBoolean(argValues[5]);
 
-        IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
+        IBAutomater automater = new IBAutomater(userName, password, tradingMode, portNumber, exportIbGatewayLogs, restarting);
     }
 
     /**
@@ -63,9 +64,11 @@ public final class IBAutomater {
      * @param portNumber The socket port number to be used for API connections
      * @param exportIbGatewayLogs If true, IBGateway logs will be exported at predefined times
      * (currently at startup and when unknown windows are detected)
+     * @param restarting If true, the automater will assume the gateway is starting after a 
+     * soft daily restart and won't try to log in
      */
-    public IBAutomater(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs) {
-        this.settings = new Settings(userName, password, tradingMode, portNumber, exportIbGatewayLogs);
+    public IBAutomater(String userName, String password, String tradingMode, int portNumber, boolean exportIbGatewayLogs, boolean restarting) {
+        this.settings = new Settings(userName, password, tradingMode, portNumber, exportIbGatewayLogs, restarting);
 
         try
         {
