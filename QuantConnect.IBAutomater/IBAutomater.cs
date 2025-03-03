@@ -92,6 +92,10 @@ namespace QuantConnect.IBAutomater
         private bool _gatewaySoftRestartTimedOut;
         private CancellationTokenSource _gatewaySoftRestartTokenSource;
 
+        private const string _ibGatewayExecutableOriginalName = "ibgateway";
+        private readonly string _ibGatewayExecutableName = $"{_ibGatewayExecutableOriginalName}1";
+        private bool _renamedIbGatewayExcecutable;
+
         /// <summary>
         /// Event fired when the process writes to the output stream
         /// </summary>
@@ -188,7 +192,6 @@ namespace QuantConnect.IBAutomater
 
             _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
 
-
             Restarted += (sender, e) =>
             {
                 StopGatewayRestartTimeoutMonitor();
@@ -209,7 +212,9 @@ namespace QuantConnect.IBAutomater
             StopGatewayRestartTimeoutMonitor();
 
             // remove Java agent setting from IB configuration file
-            UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false);
+            UpdateIbGatewayConfiguration(GetIbGatewayVersionPath(), false, false);
+
+            RenameIbGatewayProgram(true);
         }
 
         /// <summary>
@@ -219,8 +224,26 @@ namespace QuantConnect.IBAutomater
         /// <remarks>The IB Gateway application will be launched</remarks>
         public StartResult Start(bool waitForExit)
         {
+            return Start(waitForExit, false);
+        }
+
+        /// <summary>
+        /// Starts the IB Gateway
+        /// </summary>
+        /// <param name="waitForExit">true if it should wait for the IB Gateway process to exit</param>
+        /// <param name="isRestart">true if soft restarting the gateway</param>
+        /// <remarks>The IB Gateway application will be launched</remarks>
+        private StartResult Start(bool waitForExit, bool isRestart)
+        {
             lock (_locker)
             {
+                if (!_renamedIbGatewayExcecutable)
+                {
+                    RenameIbGatewayProgram();
+                }
+
+                var currentExecutableName = GetIbGatewayExecutablePath();
+
                 var ibAutomaterPath = "IBAutomater.sh";
                 if (!File.Exists(ibAutomaterPath))
                 {
@@ -264,7 +287,7 @@ namespace QuantConnect.IBAutomater
                 }
 
                 UpdateIbGatewayIniFile();
-                var javaAgent = UpdateIbGatewayConfiguration(ibGatewayVersionPath, true);
+                var javaAgent = UpdateIbGatewayConfiguration(ibGatewayVersionPath, true, isRestart);
 
                 _timerLogReader.Change(Timeout.Infinite, Timeout.Infinite);
 
@@ -281,16 +304,32 @@ namespace QuantConnect.IBAutomater
                 _timerLogReader.Change(TimeSpan.Zero, TimeSpan.FromSeconds(1));
 
                 string fileName;
-                string arguments;
+                var arguments = $"-J-DjtsConfigDir={ibGatewayVersionPath}";
+                var ibGatewayExecutablePath = GetIbGatewayExecutablePath();
                 if (IsWindows)
                 {
-                    fileName = $"{ibGatewayVersionPath}/ibgateway.exe";
-                    arguments = string.Empty;
+                    fileName = ibGatewayExecutablePath;
                 }
                 else
                 {
                     fileName = ibAutomaterPath;
-                    arguments = $"{ibGatewayVersionPath} {javaAgent}";
+                    arguments = $"{ibGatewayExecutablePath} {javaAgent} {arguments}";
+                }
+
+                if (isRestart)
+                {
+                    // Find autorestart file
+                    var autoRestartFilePath = Directory.GetFiles(ibGatewayVersionPath, "autorestart", SearchOption.AllDirectories).SingleOrDefault();
+                    if (autoRestartFilePath == null)
+                    {
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Gateway auto-restart could not be completed. " +
+                            "Starting gateway from zero. This could require 2FA confirmation."));
+                    }
+                    else
+                    {
+                        var sessionFolderName = Directory.GetParent(autoRestartFilePath).Name;
+                        arguments += $" -J-DCHANNEL=stable -J-DchannelChanged=false -J-Drestart={sessionFolderName}";
+                    }
                 }
 
                 var process = new Process
@@ -342,8 +381,7 @@ namespace QuantConnect.IBAutomater
                     string message;
                     if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
                     {
-                        var processName = IsWindows ? "ibgateway" : "java";
-
+                        var processName = IsWindows ? Path.GetFileNameWithoutExtension(fileName) : "java";
                         var p = Process.GetProcessesByName(processName).FirstOrDefault();
                         OutputDataReceived?.Invoke(this,
                             p != null
@@ -562,10 +600,13 @@ namespace QuantConnect.IBAutomater
 
             if (_isRestartInProgress)
             {
-                _ibAutomaterInitializeEvent.Reset();
-
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Waiting for IBGateway auto-restart"));
-                if (!_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
+
+                // We need to start the IBGateway again manually, we don't let it auto-restart
+                // so that we can make sure the automater java agent is attached to the new process.
+                var startResult = Start(false, true);
+
+                if (startResult.HasError)
                 {
                     TraceIbLauncherLogFile();
 
@@ -578,41 +619,11 @@ namespace QuantConnect.IBAutomater
 
                 if (_isRestartInProgress)
                 {
-                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater initialized."));
-
-                    // find new IBGateway process (created by auto-restart)
-
-                    var process = GetIbGatewayProcess();
-                    if (process == null)
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process not found"));
-
-                        TraceIbLauncherLogFile();
-
-                        _lastStartResult = new StartResult(ErrorCode.RestartedProcessNotFound, "IBGateway process was not found after restart");
-
-                        // fire Exited event so the client can reconnect or die
-                        Exited?.Invoke(this, new ExitedEventArgs(0));
-                    }
-                    else
-                    {
-                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"IBGateway restarted process found: Id:{process.Id} - Name:{process.ProcessName}. Arguments: {GetProcessArguments(process)}"));
-
-                        // fire Restarted event so the client can reconnect only (without starting IBGateway)
-                        Restarted?.Invoke(this, new EventArgs());
-
-                        process.Exited -= OnProcessExited;
-
-                        // replace process
-                        _process = process;
-
-                        // we cannot add output/error redirection event handlers here as we didn't start the process
-
-                        process.Exited += OnProcessExited;
-                        process.EnableRaisingEvents = true;
-                    }
-
                     _isRestartInProgress = false;
+
+                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("IB Automater restarted and initialized."));
+                    // fire Restarted event so the client can reconnect only (without starting IBGateway)
+                    Restarted?.Invoke(this, new EventArgs());
                 }
                 else
                 {
@@ -621,6 +632,8 @@ namespace QuantConnect.IBAutomater
             }
             else
             {
+                // Let's rename the gateway program back to its original name
+                RenameIbGatewayProgram(true);
                 Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
             }
         }
@@ -716,7 +729,6 @@ namespace QuantConnect.IBAutomater
         /// </summary>
         public void SoftRestart()
         {
-
             if (_isDisposeCalled || _gatewaySoftRestartTokenSource != null && !_gatewaySoftRestartTokenSource.IsCancellationRequested)
             {
                 return;
@@ -1038,6 +1050,55 @@ namespace QuantConnect.IBAutomater
             return ibGatewayVersionPath;
         }
 
+        private string GetIbGatewayExecutablePath()
+        {
+            return GetIbGatewayExecutablePath(_renamedIbGatewayExcecutable ? _ibGatewayExecutableName : _ibGatewayExecutableOriginalName);
+        }
+
+        private string GetIbGatewayExecutablePath(string executableName)
+        {
+            var ibGatewayPath = GetIbGatewayVersionPath();
+            return IsLinux
+                ? $"{ibGatewayPath}/{executableName}"
+                : $"{ibGatewayPath}/{executableName}.exe";
+        }
+
+        private string GetIbGatewayVmOptionsPath()
+        {
+            return GetIbGatewayVmOptionsPath(_renamedIbGatewayExcecutable ? _ibGatewayExecutableName : _ibGatewayExecutableOriginalName);
+        }
+
+        private string GetIbGatewayVmOptionsPath(string executableName)
+        {
+            var ibGatewayPath = GetIbGatewayVersionPath();
+            return IsLinux
+                ? $"{ibGatewayPath}/{executableName}.vmoptions"
+                : $"{ibGatewayPath}/{executableName}.vmoptions";
+        }
+
+        private void RenameIbGatewayProgram(bool forceOriginalName = false)
+        {
+            var currentExecutableName = _ibGatewayExecutableOriginalName;
+            var newExecutableName = _ibGatewayExecutableName;
+            if (_renamedIbGatewayExcecutable)
+            {
+                currentExecutableName = _ibGatewayExecutableName;
+                newExecutableName = _ibGatewayExecutableOriginalName;
+                _renamedIbGatewayExcecutable = false;
+            }
+            else if (!forceOriginalName)
+            {
+                _renamedIbGatewayExcecutable = true;
+            }
+            else
+            {
+                return;
+            }
+
+            File.Move(GetIbGatewayExecutablePath(currentExecutableName), GetIbGatewayExecutablePath(newExecutableName));
+            File.Move(GetIbGatewayVmOptionsPath(currentExecutableName), GetIbGatewayVmOptionsPath(newExecutableName));
+        }
+
         private string GetIbGatewayIniFile()
         {
             return Path.Combine(IsWindows ? GetIbGatewayVersionPath() : _ibDirectory, "jts.ini");
@@ -1065,10 +1126,10 @@ namespace QuantConnect.IBAutomater
             }
         }
 
-        private string UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent)
+        private string UpdateIbGatewayConfiguration(string ibGatewayVersionPath, bool enableJavaAgent, bool isRestart)
         {
             // update IBGateway configuration file with Java agent entry
-            var ibGatewayConfigFile = $"{ibGatewayVersionPath}/ibgateway.vmoptions";
+            var ibGatewayConfigFile = GetIbGatewayVmOptionsPath();
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Updating IBGateway configuration file: {ibGatewayConfigFile}"));
 
             var jarPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -1109,7 +1170,7 @@ namespace QuantConnect.IBAutomater
 
             if (enableJavaAgent)
             {
-                File.WriteAllText(javaAgentConfigFileName, $"{_userName}\n{_password}\n{_tradingMode}\n{_portNumber}\n{_exportIbGatewayLogs}");
+                File.WriteAllText(javaAgentConfigFileName, $"{_userName}\n{_password}\n{_tradingMode}\n{_portNumber}\n{_exportIbGatewayLogs}\n{isRestart}");
             }
             else
             {
@@ -1159,57 +1220,6 @@ namespace QuantConnect.IBAutomater
                 {
                     OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading IB launcher log file: {exception.Message}"));
                 }
-            }
-        }
-
-        private string GetProcessArguments(Process process)
-        {
-            if (IsWindows)
-            {
-                // we don't need this and supporting it requires dependencies so let's just skip it
-                return "Not supported";
-            }
-
-            try
-            {
-                return File.ReadAllText($"/proc/{process.Id}/cmdline");
-            }
-            catch (Exception exception)
-            {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Error reading process cmdline: {exception.Message}"));
-            }
-            return string.Empty;
-        }
-
-        private Process GetIbGatewayProcess()
-        {
-            var processName = IsWindows ? "ibgateway" : "java";
-
-            var processes = Process.GetProcessesByName(processName);
-            if (processes == null || processes.Length == 0)
-            {
-                return null;
-            }
-            else if (processes.Length > 1)
-            {
-                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Found multiple processes named: '{processName}'. Processes: [{string.Join(",", processes.Select(p => $"pid:{p.Id}\ncmdline:\n{GetProcessArguments(p)}"))}]"));
-
-                // in linux there's a short lived java launcher process but it doesn't have our jar as argument
-                var filteredProcesses = processes.Where(p => GetProcessArguments(p).Contains("IBAutomater.jar", StringComparison.InvariantCultureIgnoreCase)).ToList();
-                if (filteredProcesses.Count != 1)
-                {
-                    filteredProcesses = processes.Where(p => GetProcessArguments(p).Contains("-Drestart=", StringComparison.InvariantCultureIgnoreCase)).ToList();
-                    if (filteredProcesses.Count != 1)
-                    {
-                        return null;
-                    }
-                }
-                return filteredProcesses.Single();
-            }
-            else
-            {
-                // happy case
-                return processes.Single();
             }
         }
 
