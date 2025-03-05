@@ -95,7 +95,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// The IBGateway soft restart timed out
         /// </summary>
-        SoftRestartTimeout
+        SoftRestartTimeout,
+
+        /// <summary>
+        /// During login the gateway presented blocking messages we could not get past
+        /// </summary>
+        LoginFailedActionRequired
     }
 
     /// <summary>
@@ -165,6 +170,10 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.SoftRestartTimeout,
                     "The IBGateway soft restart timed out."
+                },
+                {
+                    ErrorCode.LoginFailedActionRequired,
+                    "Login failed. User action required, please login to your account in the IB portal."
                 }
             };
 

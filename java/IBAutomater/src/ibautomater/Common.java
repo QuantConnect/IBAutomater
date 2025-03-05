@@ -87,6 +87,27 @@ public class Common {
     }
 
     /**
+     * Gets all JButton instances with the specified text.
+     *
+     * @param container The container to be queried
+     * @param text The button text to find
+     *
+     * @return Returns all JButton instances in the given container with the specified text, empty if the button is not found
+     */
+    public static List<JButton> getButtons(Container container, String text) {
+        List<JButton> result = new ArrayList<>();
+        ArrayList<Component> buttons = new ArrayList<>();
+        Common.loadComponents(container, JButton.class, buttons);
+        for (Component component : buttons) {
+            JButton button = (JButton)component;
+            String buttonText = button.getText();
+            if (buttonText == null || !buttonText.equalsIgnoreCase(text)) continue;
+            result.add(button);
+        }
+        return result;
+    }
+
+    /**
      * Gets a JButton instance with the specified text.
      *
      * @param container The container to be queried

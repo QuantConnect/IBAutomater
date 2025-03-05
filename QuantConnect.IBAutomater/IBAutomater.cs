@@ -484,7 +484,11 @@ namespace QuantConnect.IBAutomater
                 // login failed
                 if (text.Contains("Login failed", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    if (text.Contains("invalid characters in credentials", StringComparison.InvariantCultureIgnoreCase)
+                    if (text.Contains("user action required", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        _lastStartResult = new StartResult(ErrorCode.LoginFailedActionRequired);
+                    }
+                    else if (text.Contains("invalid characters in credentials", StringComparison.InvariantCultureIgnoreCase)
                         || !IsWithinScheduledServerResetTimes())
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailed);
