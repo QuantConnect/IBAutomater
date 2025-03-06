@@ -484,7 +484,7 @@ namespace QuantConnect.IBAutomater
                 // login failed
                 if (text.Contains("Login failed", StringComparison.InvariantCultureIgnoreCase))
                 {
-                    if (text.Contains("user action required", StringComparison.InvariantCultureIgnoreCase))
+                    if (text.Contains("user account-tasks is required", StringComparison.InvariantCultureIgnoreCase))
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailedAccountTasksRequired);
                     }
