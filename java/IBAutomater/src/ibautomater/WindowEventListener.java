@@ -198,38 +198,9 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.equals("Login Messages")) {
-            LogWindowContents(window);
-
-            List<JButton> laterButtons = Common.getButtons(window, "Later");
-            if (!laterButtons.isEmpty()) {
-                for (JButton laterButton : laterButtons) {
-                    if (laterButton.isEnabled()) {
-                        this.automater.logMessage("Click button: [Later]");
-                        laterButton.doClick();
-                    }
-                    else {
-                        this.automater.logMessage("Button: [Later] disabled");
-                    }
-                }
-            }
-            else {
-                this.automater.logMessage("Button: [Later] not found");
-            }
-
-            JButton resumeLoginButton = Common.getButton(window, "Resume Login");
-            if (resumeLoginButton != null) {
-                if (resumeLoginButton.isEnabled()) {
-                    this.automater.logMessage("Click button: [Resume Login]");
-                    resumeLoginButton.doClick();
-                }
-                else {
-                    this.automater.logMessage("Login failed: a user account-tasks is required. Please download"
-                            + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
-                }
-            }
-            else {
-                this.automater.logMessage("Button: [Resume Login] not found");
-            }
+            // this window has custom IB obfuscated components, we can't click around nor understand
+            this.automater.logMessage("Login failed: a user account-tasks is required. Please download"
+                    + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
             return true;
         }
         return false;
@@ -743,11 +714,9 @@ public class WindowEventListener implements AWTEventListener {
         // v983+
         String faText = "Use Account Groups with Allocation Methods";
         JCheckBox faCheckBox = Common.getCheckBox(window, faText);
-        if (faCheckBox != null) {
-            if (faCheckBox.isSelected()) {
-                this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-                faCheckBox.setSelected(false);
-            }
+        if (faCheckBox != null && !faCheckBox.isSelected()) {
+            this.automater.logMessage("Select checkbox: [" + faText + "]");
+            faCheckBox.setSelected(true);
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
