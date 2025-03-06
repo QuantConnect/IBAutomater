@@ -171,12 +171,68 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleUseSslEncryptionWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleLoginMessages(window, eventId)) {
+                return;
+            }
 
             HandleUnknownMessageWindow(window, eventId);
         }
         catch (Exception e) {
             this.automater.logError(e);
         }
+    }
+
+    /**
+     * Detects and handles the login messages window.
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
+    private boolean HandleLoginMessages(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.equals("Login Messages")) {
+            LogWindowContents(window);
+
+            List<JButton> laterButtons = Common.getButtons(window, "Later");
+            if (!laterButtons.isEmpty()) {
+                for (JButton laterButton : laterButtons) {
+                    if (laterButton.isEnabled()) {
+                        this.automater.logMessage("Click button: [Later]");
+                        laterButton.doClick();
+                    }
+                    else {
+                        this.automater.logMessage("Button: [Later] disabled");
+                    }
+                }
+            }
+            else {
+                this.automater.logMessage("Button: [Later] not found");
+            }
+
+            JButton resumeLoginButton = Common.getButton(window, "Resume Login");
+            if (resumeLoginButton != null) {
+                if (resumeLoginButton.isEnabled()) {
+                    this.automater.logMessage("Click button: [Resume Login]");
+                    resumeLoginButton.doClick();
+                }
+                else {
+                    this.automater.logMessage("Login failed: a user account-tasks is required. Please download"
+                            + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
+                }
+            }
+            else {
+                this.automater.logMessage("Button: [Resume Login] not found");
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -299,7 +355,8 @@ public class WindowEventListener implements AWTEventListener {
 
         String title = Common.getTitle(window);
 
-        if (title != null && title.equals("Login failed")) {
+        if (title != null && (title.equals("Login failed")
+                || title.equals("Unrecognized Username or Password"))) {
             JTextPane textPane = Common.getTextPane(window);
             String text = "";
             if (textPane != null) {
@@ -1478,27 +1535,27 @@ public class WindowEventListener implements AWTEventListener {
             String text = "";
             if (component instanceof JLabel)
             {
-                text = " - Text: [" + ((JLabel) component).getText() + "]";
+                text = " - JLabel Text: [" + ((JLabel) component).getText() + "]";
             }
             else if (component instanceof JTextPane)
             {
-                text = " - Text: [" + ((JTextPane) component).getText() + "]";
+                text = " - JTextPane Text: [" + ((JTextPane) component).getText() + "]";
             }
             else if (component instanceof JTextField)
             {
-                text = " - Text: [" + ((JTextField) component).getText() + "]";
+                text = " - JTextField Text: [" + ((JTextField) component).getText() + "]";
             }
             else if (component instanceof JTextArea)
             {
-                text = " - Text: [" + ((JTextArea) component).getText() + "]";
+                text = " - JTextArea Text: [" + ((JTextArea) component).getText() + "]";
             }
             else if (component instanceof JCheckBox)
             {
-                text = " - Text: [" + ((JCheckBox) component).getText() + "]";
+                text = " - JCheckBox Text: [" + ((JCheckBox) component).getText() + "]";
             }
             else if (component instanceof JOptionPane)
             {
-                text = " - Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
+                text = " - JOptionPane Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
             }
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
@@ -1525,6 +1582,14 @@ public class WindowEventListener implements AWTEventListener {
             }
             else {
                 this.automater.logMessage("Gateway Logs menu not found.");
+            }
+
+            JMenuItem apiLogsButton = Common.getMenuItem(window, "File", "API Logs");
+            if (apiLogsButton != null) {
+                apiLogsButton.doClick();
+            }
+            else {
+                this.automater.logMessage("API Logs menu not found.");
             }
         }
     }
