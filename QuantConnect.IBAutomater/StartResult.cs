@@ -98,9 +98,9 @@ namespace QuantConnect.IBAutomater
         SoftRestartTimeout,
 
         /// <summary>
-        /// During login the gateway presented blocking messages we could not get past
+        /// During login the gateway presented blocking account tasks we could not get past
         /// </summary>
-        LoginFailedActionRequired
+        LoginFailedAccountTasksRequired
     }
 
     /// <summary>
@@ -172,8 +172,8 @@ namespace QuantConnect.IBAutomater
                     "The IBGateway soft restart timed out."
                 },
                 {
-                    ErrorCode.LoginFailedActionRequired,
-                    "Login failed. User action required, please login to your account in the IB portal."
+                    ErrorCode.LoginFailedAccountTasksRequired,
+                    "Login to the IB Gateway failed because a user account-tasks is required. Please download the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php."
                 }
             };
 

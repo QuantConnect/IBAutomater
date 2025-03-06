@@ -223,7 +223,8 @@ public class WindowEventListener implements AWTEventListener {
                     resumeLoginButton.doClick();
                 }
                 else {
-                    this.automater.logMessage("Login failed: user action required, please login to your account in the IB portal");
+                    this.automater.logMessage("Login failed: a user account-tasks is required. Please download"
+                            + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
                 }
             }
             else {
