@@ -743,11 +743,9 @@ public class WindowEventListener implements AWTEventListener {
         // v983+
         String faText = "Use Account Groups with Allocation Methods";
         JCheckBox faCheckBox = Common.getCheckBox(window, faText);
-        if (faCheckBox != null) {
-            if (faCheckBox.isSelected()) {
-                this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-                faCheckBox.setSelected(false);
-            }
+        if (faCheckBox != null && !faCheckBox.isSelected()) {
+            this.automater.logMessage("Select checkbox: [" + faText + "]");
+            faCheckBox.setSelected(true);
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
