@@ -1582,6 +1582,14 @@ public class WindowEventListener implements AWTEventListener {
             else {
                 this.automater.logMessage("Gateway Logs menu not found.");
             }
+
+            JMenuItem apiLogsButton = Common.getMenuItem(window, "File", "API Logs");
+            if (apiLogsButton != null) {
+                apiLogsButton.doClick();
+            }
+            else {
+                this.automater.logMessage("API Logs menu not found.");
+            }
         }
     }
 }
