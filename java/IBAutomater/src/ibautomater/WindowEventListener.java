@@ -199,7 +199,7 @@ public class WindowEventListener implements AWTEventListener {
 
         if (title != null && title.equals("Login Messages")) {
             // this window has custom IB obfuscated components, we can't click around nor understand
-            this.automater.logMessage("Login failed: a user account-tasks is required. Please download"
+            this.automater.logMessage("Login failed: a user account-task is required. Please download"
                     + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
             return true;
         }

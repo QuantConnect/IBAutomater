@@ -173,7 +173,7 @@ namespace QuantConnect.IBAutomater
                 },
                 {
                     ErrorCode.LoginFailedAccountTasksRequired,
-                    "Login to the IB Gateway failed because a user account-tasks is required. Please download the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php."
+                    "Login to the IB Gateway failed because a user account-task is required. Please download the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php."
                 }
             };
 
