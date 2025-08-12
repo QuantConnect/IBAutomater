@@ -556,15 +556,6 @@ namespace QuantConnect.IBAutomater
                     _ibAutomaterInitializeEvent.Set();
                 }
 
-                // an unknown message window was detected
-                else if (text.StartsWith("Unknown message window detected", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    TraceIbLauncherLogFile();
-
-                    _lastStartResult = new StartResult(ErrorCode.UnknownMessageWindowDetected, text);
-                    _ibAutomaterInitializeEvent.Set();
-                }
-
                 // initialization completed
                 else if (text.Contains("Configuration settings updated", StringComparison.InvariantCultureIgnoreCase))
                 {
