@@ -893,6 +893,38 @@ namespace QuantConnect.IBAutomater
             {
                 if (_process == null)
                 {
+                    // Check if there's an existing IB Gateway process running
+                    // This handles the case where IB Gateway was started manually
+                    if (IsWindows)
+                    {
+                        var ibGatewayProcesses = Process.GetProcessesByName(_ibGatewayExecutableName.Replace(".exe", ""));
+                        if (ibGatewayProcesses.Length > 0)
+                        {
+                            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                                $"Found existing IB Gateway process (PID: {ibGatewayProcesses[0].Id}). Will reuse it."));
+                            return true;
+                        }
+                    }
+                    else
+                    {
+                        var javaProcesses = Process.GetProcessesByName("java");
+                        foreach (var proc in javaProcesses)
+                        {
+                            try
+                            {
+                                if (proc.MainModule?.FileName?.Contains("ibgateway") == true)
+                                {
+                                    OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                                        $"Found existing IB Gateway java process (PID: {proc.Id}). Will reuse it."));
+                                    return true;
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore access denied exceptions
+                            }
+                        }
+                    }
                     return false;
                 }
 
