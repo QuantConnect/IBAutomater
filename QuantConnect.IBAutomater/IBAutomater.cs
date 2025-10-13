@@ -239,7 +239,14 @@ namespace QuantConnect.IBAutomater
             {
                 if (!_renamedIbGatewayExcecutable)
                 {
+                    CleanUpIbGatewayExcecutable();
                     RenameIbGatewayProgram();
+                }
+
+                var shutdownFilePath = Path.Combine(GetIbGatewayVersionPath(), "shutdown");
+                if (File.Exists(shutdownFilePath))
+                {
+                    File.Delete(shutdownFilePath);
                 }
 
                 var currentExecutableName = GetIbGatewayExecutablePath();
@@ -252,8 +259,13 @@ namespace QuantConnect.IBAutomater
 
                 if (_lastStartResult.HasError)
                 {
-                    // IBAutomater errors are unrecoverable
-                    return _lastStartResult;
+                    if (_lastStartResult.ErrorCode != ErrorCode.TwoFactorConfirmationTimeout)
+                    {
+                        // IBAutomater errors are unrecoverable, except for 2FA timeouts
+                        return _lastStartResult;
+                    }
+
+                    _lastStartResult = StartResult.Success;
                 }
 
                 if (IsRunning())
@@ -420,6 +432,19 @@ namespace QuantConnect.IBAutomater
             }
 
             return StartResult.Success;
+        }
+
+        /// <summary>
+        /// This method will revert the IB Gateway executable name back to its original name if it was renamed but not reverted back in a previous deployment
+        /// </summary>
+        private void CleanUpIbGatewayExcecutable()
+        {
+            var renamedExecutablePath = GetIbGatewayExecutablePath(_ibGatewayExecutableName);
+            if (File.Exists(renamedExecutablePath))
+            {
+                _renamedIbGatewayExcecutable = true;
+                RenameIbGatewayProgram();
+            }
         }
 
         private void LogReaderTimerCallback(object _)

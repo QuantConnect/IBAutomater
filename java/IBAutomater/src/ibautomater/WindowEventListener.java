@@ -73,7 +73,7 @@ public class WindowEventListener implements AWTEventListener {
 
     private Instant twoFactorConfirmationRequestTime;
     private int twoFactorConfirmationAttempts = 0;
-    private final int maxTwoFactorConfirmationAttempts = 3;
+    private final int maxTwoFactorConfirmationAttempts = 1;
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
