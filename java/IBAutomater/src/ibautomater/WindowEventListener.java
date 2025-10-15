@@ -816,6 +816,11 @@ public class WindowEventListener implements AWTEventListener {
         if (title != null && title.equals("Existing session detected")) {
             String buttonText = "Exit Application";
             JButton button = Common.getButton(window, buttonText);
+            if (button == null) {
+                // new gateway uses another name
+                buttonText = "Cancel";
+                button = Common.getButton(window, buttonText);
+            }
 
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
