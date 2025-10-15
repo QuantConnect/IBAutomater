@@ -73,7 +73,7 @@ public class WindowEventListener implements AWTEventListener {
 
     private Instant twoFactorConfirmationRequestTime;
     private int twoFactorConfirmationAttempts = 0;
-    private final int maxTwoFactorConfirmationAttempts = 1;
+    private final int maxTwoFactorConfirmationAttempts = 3;
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
@@ -848,6 +848,20 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.equals("Re-login is required")) {
+            if (this.twoFactorConfirmationAttempts >= this.maxTwoFactorConfirmationAttempts) {
+                this.automater.logMessage("Skipping Re-login, maximum attempts reached");
+
+                JButton cancel = Common.getButton(window, "Cancel");
+                if (cancel != null) {
+                    this.automater.logMessage("Click button: [Cancel]");
+                    cancel.doClick();
+                }
+                else {
+                    throw new Exception("Button not found: [Cancel]");
+                }
+                return true;
+            }
+
             String buttonText = "Re-login";
             JButton button = Common.getButton(window, buttonText);
 
@@ -1150,7 +1164,7 @@ public class WindowEventListener implements AWTEventListener {
                 // the timeout can be a few seconds earlier than 3 minutes, so we use 150 seconds to be safe
                 if (delta.compareTo(Duration.ofSeconds(150)) >= 0) {
                     this.automater.logMessage("2FA confirmation timeout");
-                    if (this.twoFactorConfirmationAttempts == this.maxTwoFactorConfirmationAttempts) {
+                    if (this.twoFactorConfirmationAttempts >= this.maxTwoFactorConfirmationAttempts) {
                         this.automater.logMessage("2FA maximum attempts reached");
                     }
                     else {
