@@ -22,7 +22,6 @@ import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
 import java.io.File;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +31,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
@@ -71,9 +72,10 @@ public class WindowEventListener implements AWTEventListener {
     private boolean restartNow = false;
     private Window viewLogsWindow = null;
 
-    private Instant twoFactorConfirmationRequestTime;
     private int twoFactorConfirmationAttempts = 0;
     private final int maxTwoFactorConfirmationAttempts = 3;
+    
+    private ScheduledFuture<?> twoFATimeoutFuture;
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
@@ -1159,15 +1161,31 @@ public class WindowEventListener implements AWTEventListener {
                 return true;
             }
             else if (eventId == WindowEvent.WINDOW_OPENED) {
-                this.twoFactorConfirmationRequestTime = Instant.now();
                 this.twoFactorConfirmationAttempts++;
                 this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
+                
+                final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+                this.twoFATimeoutFuture = executor.schedule(() -> {
+                    try {                       
+                        this.automater.logMessage("Closing 2FA window after timeout");
+                        String buttonText = "Cancel";
+                        JButton button = Common.getButton(window, buttonText);
+                        if (button != null) {
+                            this.automater.logMessage("Click button: [" + buttonText + "]");
+                            button.doClick();
+                        }
+                    } catch (Exception e) {
+                        // Shouldn't happen
+                        this.automater.logMessage("Close 2FA window execute error: " + e.getMessage());
+                        throw e;
+                    }
+                }, 150, TimeUnit.SECONDS);
+                
                 return true;
             }
             else if (eventId == WindowEvent.WINDOW_CLOSED) {
-                Duration delta = Duration.between(this.twoFactorConfirmationRequestTime, Instant.now());
-                // the timeout can be a few seconds earlier than 3 minutes, so we use 150 seconds to be safe
-                if (delta.compareTo(Duration.ofSeconds(150)) >= 0) {
+                if (this.twoFATimeoutFuture != null && this.twoFATimeoutFuture.isDone() && !this.twoFATimeoutFuture.isCancelled()) {
+                    this.twoFATimeoutFuture = null;
                     this.automater.logMessage("2FA confirmation timeout");
                     if (this.twoFactorConfirmationAttempts >= this.maxTwoFactorConfirmationAttempts) {
                         this.automater.logMessage("2FA maximum attempts reached");
@@ -1199,6 +1217,10 @@ public class WindowEventListener implements AWTEventListener {
                     }
                 }
                 else {
+                    if (this.twoFATimeoutFuture != null) {
+                        this.twoFATimeoutFuture.cancel(true);
+                        this.twoFATimeoutFuture = null;
+                    }
                     this.automater.logMessage("2FA confirmation success");
                     this.twoFactorConfirmationAttempts = 0;
                 }
