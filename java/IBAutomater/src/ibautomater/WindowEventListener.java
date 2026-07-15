@@ -50,6 +50,7 @@ import javax.swing.JToggleButton;
 import javax.swing.JTree;
 import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.tree.TreePath;
 
 /**
@@ -891,7 +892,10 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Financial Advisor warning window.
-     * - clicks the "Yes" button
+     * - logs the window contents
+     * - selects the "Don't display this message again." check box if present
+     * - clicks the confirmation button ("Accept and Continue", "OK", "Transmit" or "Yes")
+     * - verifies the window was closed by the click
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -906,16 +910,51 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Financial Advisor Warning")) {
-            String buttonText = "Yes";
-            JButton button = Common.getButton(window, buttonText);
+            LogWindowContents(window);
 
-            if (button != null) {
-                this.automater.logMessage("Click button: [" + buttonText + "]");
-                button.doClick();
+            // newer gateway versions gate the confirmation button behind this check box
+            for (Component component : Common.getComponents(window)) {
+                if (component instanceof JCheckBox) {
+                    JCheckBox checkBox = (JCheckBox)component;
+                    String checkBoxText = checkBox.getText();
+                    if (checkBoxText != null
+                        && checkBoxText.toLowerCase().contains("display this message")
+                        && !checkBox.isSelected()) {
+                        this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
+                        checkBox.setSelected(true);
+                    }
+                }
             }
-            else {
-                throw new Exception("Button not found: [" + buttonText + "]");
+
+            JButton button = null;
+            String buttonText = null;
+            for (String text : new String[] { "Accept and Continue", "OK", "Transmit", "Yes" }) {
+                button = Common.getButton(window, text);
+                if (button != null) {
+                    buttonText = text;
+                    break;
+                }
             }
+
+            if (button == null) {
+                throw new Exception("Button not found: [Yes]");
+            }
+
+            this.automater.logMessage("Click button: [" + buttonText + "] - Enabled: [" + button.isEnabled() + "]");
+            button.doClick();
+
+            // the click on a disabled button is a silent no-op,
+            // so verify the window was actually closed
+            final String clickedButtonText = buttonText;
+            Timer timer = new Timer(2000, (event) -> {
+                if (window.isDisplayable()) {
+                    this.automater.logMessage("Financial Advisor Warning window still open after clicking [" + clickedButtonText + "]");
+                    LogWindowContents(window);
+                    SaveIBLogs();
+                }
+            });
+            timer.setRepeats(false);
+            timer.start();
 
             return true;
         }
@@ -1434,6 +1473,20 @@ public class WindowEventListener implements AWTEventListener {
             return true;
         }
 
+        // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
+        // so dump their contents for diagnostics, without emitting the
+        // "Unknown message window detected" error marker
+        if (windowName != null && windowName.equals("IBKR Gateway")
+            && window != this.automater.getMainWindow()
+            && !IsKnownWindowTitle(title))
+        {
+            LogWindowContents(window);
+
+            this.automater.logMessage("Unhandled window detected - Window title: [" + title + "]");
+
+            return true;
+        }
+
         return false;
     }
 
@@ -1614,7 +1667,13 @@ public class WindowEventListener implements AWTEventListener {
             }
             else if (component instanceof JCheckBox)
             {
-                text = " - JCheckBox Text: [" + ((JCheckBox) component).getText() + "]";
+                JCheckBox checkBox = (JCheckBox) component;
+                text = " - JCheckBox Text: [" + checkBox.getText() + "] - Selected: [" + checkBox.isSelected() + "] - Enabled: [" + checkBox.isEnabled() + "]";
+            }
+            else if (component instanceof JButton)
+            {
+                JButton button = (JButton) component;
+                text = " - JButton Text: [" + button.getText() + "] - Enabled: [" + button.isEnabled() + "]";
             }
             else if (component instanceof JOptionPane)
             {
