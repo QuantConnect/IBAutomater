@@ -173,6 +173,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleUseSslEncryptionWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleMarketOrderConfirmationWindow(window, eventId)) {
+                return;
+            }
             if (this.HandleLoginMessages(window, eventId)) {
                 return;
             }
@@ -1293,6 +1296,56 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         return false;
+    }
+
+    /**
+     * Detects and handles the Market Order Confirmation window.
+     * - selects the "Don't display this message again." check box
+     * - clicks the "Accept and Continue" button
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
+    private boolean HandleMarketOrderConfirmationWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title == null || !title.contains("Market Order Confirmation")) {
+            return false;
+        }
+
+        String checkBoxText = "Don't display this message again.";
+        JCheckBox checkBox = Common.getCheckBox(window, checkBoxText);
+        if (checkBox == null) {
+            checkBox = Common.getCheckBox(window, "Don't display this message again");
+        }
+        if (checkBox != null) {
+            if (!checkBox.isSelected()) {
+                this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
+                checkBox.setSelected(true);
+            }
+        }
+        else {
+            this.automater.logMessage("Checkbox not found: [" + checkBoxText + "]");
+        }
+
+        String buttonText = "Accept and Continue";
+        JButton button = Common.getButton(window, buttonText);
+
+        if (button != null) {
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            button.doClick();
+        }
+        else {
+            throw new Exception("Button not found: [" + buttonText + "]");
+        }
+
+        return true;
     }
 
     /**
