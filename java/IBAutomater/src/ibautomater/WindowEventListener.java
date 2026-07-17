@@ -1458,10 +1458,17 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String title = Common.getTitle(window);
         String windowName = window.getName();
+        if (windowName == null) {
+            return false;
+        }
 
-        if (windowName != null && windowName.startsWith("dialog") && !IsKnownWindowTitle(title))
+        String title = Common.getTitle(window);
+        if (IsKnownWindowTitle(title)) {
+            return false;
+        }
+
+        if (windowName.startsWith("dialog"))
         {
             LogWindowContents(window);
 
@@ -1479,9 +1486,7 @@ public class WindowEventListener implements AWTEventListener {
         // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
         // so dump their contents for diagnostics, without emitting the
         // "Unknown message window detected" error marker
-        if (windowName != null && windowName.equals("IBKR Gateway")
-            && window != this.automater.getMainWindow()
-            && !IsKnownWindowTitle(title))
+        if (windowName.equals("IBKR Gateway") && window != this.automater.getMainWindow())
         {
             LogWindowContents(window);
 
