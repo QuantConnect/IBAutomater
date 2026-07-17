@@ -1338,8 +1338,15 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     /**
-     * Detects and handles the order confirmation windows
-     * ("Market Order Confirmation", "Cash Quantity Order Warning").
+     * Detects and handles the order confirmation/warning windows.
+     * These windows share the same layout: a message, a
+     * "Don't display this message again." check box and an
+     * "Accept and Continue" button (e.g. "Market Order Confirmation",
+     * "Cash Quantity Order Warning"). The window is detected by the
+     * presence of the "Accept and Continue" button rather than by its
+     * title, so any such confirmation window is handled.
+     * - reads the message shown to the user and logs it so the brokerage
+     *   can surface it to the user as a message
      * - selects the "Don't display this message again." check box
      * - clicks the "Accept and Continue" button
      *
@@ -1353,18 +1360,25 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String title = Common.getTitle(window);
-
-        if (title == null ||
-            (!title.contains("Market Order Confirmation") &&
-             !title.contains("Cash Quantity Order Warning"))) {
+        String buttonText = "Accept and Continue";
+        JButton button = Common.getButton(window, buttonText);
+        if (button == null) {
+            // not an order confirmation window
             return false;
         }
+
+        String title = Common.getTitle(window);
+        String content = GetWindowText(window).replaceAll("\\s+", " ").trim();
+        String message = (title != null && !title.isEmpty() ? title + ": " : "") + content;
+
+        // the brokerage surfaces this line to the user as a BrokerageMessage
+        this.automater.logMessage("Order confirmation window: " + message);
 
         String checkBoxText = "Don't display this message again.";
         JCheckBox checkBox = Common.getCheckBox(window, checkBoxText);
         if (checkBox == null) {
-            checkBox = Common.getCheckBox(window, "Don't display this message again");
+            // try without the trailing period
+            checkBox = Common.getCheckBox(window, checkBoxText.substring(0, checkBoxText.length() - 1));
         }
         if (checkBox != null) {
             if (!checkBox.isSelected()) {
@@ -1376,16 +1390,8 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Checkbox not found: [" + checkBoxText + "]");
         }
 
-        String buttonText = "Accept and Continue";
-        JButton button = Common.getButton(window, buttonText);
-
-        if (button != null) {
-            this.automater.logMessage("Click button: [" + buttonText + "]");
-            button.doClick();
-        }
-        else {
-            throw new Exception("Button not found: [" + buttonText + "]");
-        }
+        this.automater.logMessage("Click button: [" + buttonText + "]");
+        button.doClick();
 
         return true;
     }
