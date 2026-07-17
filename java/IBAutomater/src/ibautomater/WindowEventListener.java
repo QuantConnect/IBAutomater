@@ -174,7 +174,7 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleUseSslEncryptionWindow(window, eventId)) {
                 return;
             }
-            if (this.HandleMarketOrderConfirmationWindow(window, eventId)) {
+            if (this.HandleOrderConfirmationWindow(window, eventId)) {
                 return;
             }
             if (this.HandleLoginMessages(window, eventId)) {
@@ -1338,7 +1338,8 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     /**
-     * Detects and handles the Market Order Confirmation window.
+     * Detects and handles the order confirmation windows
+     * ("Market Order Confirmation", "Cash Quantity Order Warning").
      * - selects the "Don't display this message again." check box
      * - clicks the "Accept and Continue" button
      *
@@ -1347,14 +1348,16 @@ public class WindowEventListener implements AWTEventListener {
      *
      * @return Returns true if the window was detected and handled
      */
-    private boolean HandleMarketOrderConfirmationWindow(Window window, int eventId) throws Exception {
+    private boolean HandleOrderConfirmationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
 
         String title = Common.getTitle(window);
 
-        if (title == null || !title.contains("Market Order Confirmation")) {
+        if (title == null ||
+            (!title.contains("Market Order Confirmation") &&
+             !title.contains("Cash Quantity Order Warning"))) {
             return false;
         }
 
