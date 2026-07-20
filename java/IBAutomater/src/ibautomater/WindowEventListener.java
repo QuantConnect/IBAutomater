@@ -732,9 +732,21 @@ public class WindowEventListener implements AWTEventListener {
         if (bypassOrderPrecautions == null) {
             throw new Exception("Bypass Order Precautions check box not found");
         }
-        if (!bypassOrderPrecautions.isSelected()) {
-            this.automater.logMessage("Select checkbox: [" + bypassOrderPrecautionsText + "]");
-            bypassOrderPrecautions.setSelected(true);
+
+        // Select every "Bypass ... for API Orders" precaution check box so that order
+        // confirmation/warning dialogs are not shown for API orders. Enabling only the main
+        // "Bypass Order Precautions for API Orders" is not enough (e.g. Financial Advisor
+        // accounts still get warnings), so we select all of them. The Precautions panel is
+        // the only configuration panel with "Bypass"-prefixed check boxes.
+        for (Component component : Common.getComponents(window)) {
+            if (component instanceof JCheckBox) {
+                JCheckBox checkBox = (JCheckBox) component;
+                String checkBoxText = checkBox.getText();
+                if (checkBoxText != null && checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
+                    this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
+                    checkBox.setSelected(true);
+                }
+            }
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Lock and Exit"}));
