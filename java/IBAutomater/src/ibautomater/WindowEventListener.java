@@ -50,7 +50,6 @@ import javax.swing.JToggleButton;
 import javax.swing.JTree;
 import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import javax.swing.tree.TreePath;
 
 /**
@@ -904,10 +903,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Financial Advisor warning window.
-     * - logs the window contents
-     * - selects the "Don't display this message again." check box if present
-     * - clicks the confirmation button ("Accept and Continue", "OK", "Transmit" or "Yes")
-     * - verifies the window was closed by the click
+     * - clicks the "Yes" button
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -922,51 +918,16 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Financial Advisor Warning")) {
-            LogWindowContents(window);
+            String buttonText = "Yes";
+            JButton button = Common.getButton(window, buttonText);
 
-            // newer gateway versions gate the confirmation button behind this check box
-            for (Component component : Common.getComponents(window)) {
-                if (component instanceof JCheckBox) {
-                    JCheckBox checkBox = (JCheckBox)component;
-                    String checkBoxText = checkBox.getText();
-                    if (checkBoxText != null
-                        && checkBoxText.toLowerCase().contains("display this message")
-                        && !checkBox.isSelected()) {
-                        this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
-                        checkBox.setSelected(true);
-                    }
-                }
+            if (button != null) {
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
             }
-
-            JButton button = null;
-            String buttonText = null;
-            for (String text : new String[] { "Accept and Continue", "OK", "Transmit", "Yes" }) {
-                button = Common.getButton(window, text);
-                if (button != null) {
-                    buttonText = text;
-                    break;
-                }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
             }
-
-            if (button == null) {
-                throw new Exception("Button not found: [Yes]");
-            }
-
-            this.automater.logMessage("Click button: [" + buttonText + "] - Enabled: [" + button.isEnabled() + "]");
-            button.doClick();
-
-            // the click on a disabled button is a silent no-op,
-            // so verify the window was actually closed
-            final String clickedButtonText = buttonText;
-            Timer timer = new Timer(2000, (event) -> {
-                if (window.isDisplayable()) {
-                    this.automater.logMessage("Financial Advisor Warning window still open after clicking [" + clickedButtonText + "]");
-                    LogWindowContents(window);
-                    SaveIBLogs();
-                }
-            });
-            timer.setRepeats(false);
-            timer.start();
 
             return true;
         }
