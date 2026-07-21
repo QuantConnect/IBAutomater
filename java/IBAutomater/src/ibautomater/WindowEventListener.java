@@ -22,7 +22,6 @@ import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
 import java.io.File;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +31,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.swing.JButton;
@@ -71,9 +72,10 @@ public class WindowEventListener implements AWTEventListener {
     private boolean restartNow = false;
     private Window viewLogsWindow = null;
 
-    private Instant twoFactorConfirmationRequestTime;
     private int twoFactorConfirmationAttempts = 0;
     private final int maxTwoFactorConfirmationAttempts = 3;
+    
+    private ScheduledFuture<?> twoFATimeoutFuture;
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
@@ -171,12 +173,39 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleUseSslEncryptionWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleLoginMessages(window, eventId)) {
+                return;
+            }
 
             HandleUnknownMessageWindow(window, eventId);
         }
         catch (Exception e) {
             this.automater.logError(e);
         }
+    }
+
+    /**
+     * Detects and handles the login messages window.
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
+    private boolean HandleLoginMessages(Window window, int eventId) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+
+        if (title != null && title.equals("Login Messages")) {
+            // this window has custom IB obfuscated components, we can't click around nor understand
+            this.automater.logMessage("Login failed: a user account-task is required. Please download"
+                    + " the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php.");
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -193,7 +222,9 @@ public class WindowEventListener implements AWTEventListener {
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleLoginWindow(Window window, int eventId) throws Exception {
-        if (eventId != WindowEvent.WINDOW_OPENED) {
+        if (eventId != WindowEvent.WINDOW_OPENED || 
+            // restarting, no need to manually log in
+            this.automater.getSettings().getRestarting()) {
             return false;
         }
 
@@ -297,7 +328,8 @@ public class WindowEventListener implements AWTEventListener {
 
         String title = Common.getTitle(window);
 
-        if (title != null && title.equals("Login failed")) {
+        if (title != null && (title.equals("Login failed")
+                || title.equals("Unrecognized Username or Password"))) {
             JTextPane textPane = Common.getTextPane(window);
             String text = "";
             if (textPane != null) {
@@ -684,11 +716,9 @@ public class WindowEventListener implements AWTEventListener {
         // v983+
         String faText = "Use Account Groups with Allocation Methods";
         JCheckBox faCheckBox = Common.getCheckBox(window, faText);
-        if (faCheckBox != null) {
-            if (faCheckBox.isSelected()) {
-                this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-                faCheckBox.setSelected(false);
-            }
+        if (faCheckBox != null && faCheckBox.isSelected()) {
+            this.automater.logMessage("Unselect checkbox: [" + faText + "]");
+            faCheckBox.setSelected(false);
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
@@ -788,6 +818,11 @@ public class WindowEventListener implements AWTEventListener {
         if (title != null && title.equals("Existing session detected")) {
             String buttonText = "Exit Application";
             JButton button = Common.getButton(window, buttonText);
+            if (button == null) {
+                // new gateway uses another name
+                buttonText = "Cancel";
+                button = Common.getButton(window, buttonText);
+            }
 
             if (button != null) {
                 this.automater.logMessage("Click button: [" + buttonText + "]");
@@ -820,6 +855,20 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.equals("Re-login is required")) {
+            if (this.twoFactorConfirmationAttempts >= this.maxTwoFactorConfirmationAttempts) {
+                this.automater.logMessage("Skipping Re-login, maximum attempts reached");
+
+                JButton cancel = Common.getButton(window, "Cancel");
+                if (cancel != null) {
+                    this.automater.logMessage("Click button: [Cancel]");
+                    cancel.doClick();
+                }
+                else {
+                    throw new Exception("Button not found: [Cancel]");
+                }
+                return true;
+            }
+
             String buttonText = "Re-login";
             JButton button = Common.getButton(window, buttonText);
 
@@ -1112,17 +1161,33 @@ public class WindowEventListener implements AWTEventListener {
                 return true;
             }
             else if (eventId == WindowEvent.WINDOW_OPENED) {
-                this.twoFactorConfirmationRequestTime = Instant.now();
                 this.twoFactorConfirmationAttempts++;
                 this.automater.logMessage("twoFactorConfirmationAttempts: " + this.twoFactorConfirmationAttempts + "/" + this.maxTwoFactorConfirmationAttempts);
+                
+                final ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+                this.twoFATimeoutFuture = executor.schedule(() -> {
+                    try {                       
+                        this.automater.logMessage("Closing 2FA window after timeout");
+                        String buttonText = "Cancel";
+                        JButton button = Common.getButton(window, buttonText);
+                        if (button != null) {
+                            this.automater.logMessage("Click button: [" + buttonText + "]");
+                            button.doClick();
+                        }
+                    } catch (Exception e) {
+                        // Shouldn't happen
+                        this.automater.logMessage("Close 2FA window execute error: " + e.getMessage());
+                        throw e;
+                    }
+                }, 150, TimeUnit.SECONDS);
+                
                 return true;
             }
             else if (eventId == WindowEvent.WINDOW_CLOSED) {
-                Duration delta = Duration.between(this.twoFactorConfirmationRequestTime, Instant.now());
-                // the timeout can be a few seconds earlier than 3 minutes, so we use 150 seconds to be safe
-                if (delta.compareTo(Duration.ofSeconds(150)) >= 0) {
+                if (this.twoFATimeoutFuture != null && this.twoFATimeoutFuture.isDone() && !this.twoFATimeoutFuture.isCancelled()) {
+                    this.twoFATimeoutFuture = null;
                     this.automater.logMessage("2FA confirmation timeout");
-                    if (this.twoFactorConfirmationAttempts == this.maxTwoFactorConfirmationAttempts) {
+                    if (this.twoFactorConfirmationAttempts >= this.maxTwoFactorConfirmationAttempts) {
                         this.automater.logMessage("2FA maximum attempts reached");
                     }
                     else {
@@ -1152,6 +1217,10 @@ public class WindowEventListener implements AWTEventListener {
                     }
                 }
                 else {
+                    if (this.twoFATimeoutFuture != null) {
+                        this.twoFATimeoutFuture.cancel(true);
+                        this.twoFATimeoutFuture = null;
+                    }
                     this.automater.logMessage("2FA confirmation success");
                     this.twoFactorConfirmationAttempts = 0;
                 }
@@ -1476,27 +1545,27 @@ public class WindowEventListener implements AWTEventListener {
             String text = "";
             if (component instanceof JLabel)
             {
-                text = " - Text: [" + ((JLabel) component).getText() + "]";
+                text = " - JLabel Text: [" + ((JLabel) component).getText() + "]";
             }
             else if (component instanceof JTextPane)
             {
-                text = " - Text: [" + ((JTextPane) component).getText() + "]";
+                text = " - JTextPane Text: [" + ((JTextPane) component).getText() + "]";
             }
             else if (component instanceof JTextField)
             {
-                text = " - Text: [" + ((JTextField) component).getText() + "]";
+                text = " - JTextField Text: [" + ((JTextField) component).getText() + "]";
             }
             else if (component instanceof JTextArea)
             {
-                text = " - Text: [" + ((JTextArea) component).getText() + "]";
+                text = " - JTextArea Text: [" + ((JTextArea) component).getText() + "]";
             }
             else if (component instanceof JCheckBox)
             {
-                text = " - Text: [" + ((JCheckBox) component).getText() + "]";
+                text = " - JCheckBox Text: [" + ((JCheckBox) component).getText() + "]";
             }
             else if (component instanceof JOptionPane)
             {
-                text = " - Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
+                text = " - JOptionPane Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
             }
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
@@ -1523,6 +1592,14 @@ public class WindowEventListener implements AWTEventListener {
             }
             else {
                 this.automater.logMessage("Gateway Logs menu not found.");
+            }
+
+            JMenuItem apiLogsButton = Common.getMenuItem(window, "File", "API Logs");
+            if (apiLogsButton != null) {
+                apiLogsButton.doClick();
+            }
+            else {
+                this.automater.logMessage("API Logs menu not found.");
             }
         }
     }
