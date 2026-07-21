@@ -309,7 +309,16 @@ namespace QuantConnect.IBAutomater
                 {
                     if (File.Exists(_ibGatewayLogFileName))
                     {
-                        File.Delete(_ibGatewayLogFileName);
+                        try
+                        {
+                            File.Delete(_ibGatewayLogFileName);
+                        }
+                        catch (IOException exception)
+                        {
+                            // the file might still be locked by a gateway instance that is shutting down
+                            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                                $"Could not delete the IBAutomater log file: {exception.Message}"));
+                        }
                     }
                 }
 
