@@ -173,6 +173,9 @@ public class WindowEventListener implements AWTEventListener {
             if (this.HandleUseSslEncryptionWindow(window, eventId)) {
                 return;
             }
+            if (this.HandleOrderConfirmationWindow(window, eventId)) {
+                return;
+            }
             if (this.HandleLoginMessages(window, eventId)) {
                 return;
             }
@@ -728,9 +731,21 @@ public class WindowEventListener implements AWTEventListener {
         if (bypassOrderPrecautions == null) {
             throw new Exception("Bypass Order Precautions check box not found");
         }
-        if (!bypassOrderPrecautions.isSelected()) {
-            this.automater.logMessage("Select checkbox: [" + bypassOrderPrecautionsText + "]");
-            bypassOrderPrecautions.setSelected(true);
+
+        // Select every "Bypass ... for API Orders" precaution check box so that order
+        // confirmation/warning dialogs are not shown for API orders. Enabling only the main
+        // "Bypass Order Precautions for API Orders" is not enough (e.g. Financial Advisor
+        // accounts still get warnings), so we select all of them. The Precautions panel is
+        // the only configuration panel with "Bypass"-prefixed check boxes.
+        for (Component component : Common.getComponents(window)) {
+            if (component instanceof JCheckBox) {
+                JCheckBox checkBox = (JCheckBox) component;
+                String checkBoxText = checkBox.getText();
+                if (checkBoxText != null && checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
+                    this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
+                    checkBox.setSelected(true);
+                }
+            }
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Lock and Exit"}));
@@ -1296,6 +1311,65 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     /**
+     * Detects and handles the order confirmation/warning windows.
+     * These windows share the same layout: a message, a
+     * "Don't display this message again." check box and an
+     * "Accept and Continue" button (e.g. "Market Order Confirmation",
+     * "Cash Quantity Order Warning"). The window is detected by the
+     * presence of the "Accept and Continue" button rather than by its
+     * title, so any such confirmation window is handled.
+     * - reads the message shown to the user and logs it so the brokerage
+     *   can surface it to the user as a message
+     * - selects the "Don't display this message again." check box
+     * - clicks the "Accept and Continue" button
+     *
+     * @param window The window instance
+     * @param eventId The id of the window event
+     *
+     * @return Returns true if the window was detected and handled
+     */
+    private boolean HandleOrderConfirmationWindow(Window window, int eventId) throws Exception {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
+            return false;
+        }
+
+        String buttonText = "Accept and Continue";
+        JButton button = Common.getButton(window, buttonText);
+        if (button == null) {
+            // not an order confirmation window
+            return false;
+        }
+
+        String title = Common.getTitle(window);
+        String content = GetWindowText(window).replaceAll("\\s+", " ").trim();
+        String message = (title != null && !title.isEmpty() ? title + ": " : "") + content;
+
+        // the brokerage surfaces this line to the user as a BrokerageMessage
+        this.automater.logMessage("Order confirmation window: " + message);
+
+        String checkBoxText = "Don't display this message again.";
+        JCheckBox checkBox = Common.getCheckBox(window, checkBoxText);
+        if (checkBox == null) {
+            // try without the trailing period
+            checkBox = Common.getCheckBox(window, checkBoxText.substring(0, checkBoxText.length() - 1));
+        }
+        if (checkBox != null) {
+            if (!checkBox.isSelected()) {
+                this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
+                checkBox.setSelected(true);
+            }
+        }
+        else {
+            this.automater.logMessage("Checkbox not found: [" + checkBoxText + "]");
+        }
+
+        this.automater.logMessage("Click button: [" + buttonText + "]");
+        button.doClick();
+
+        return true;
+    }
+
+    /**
      * Returns whether the given window title is known.
      *
      * @param title The window title
@@ -1363,10 +1437,17 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String title = Common.getTitle(window);
         String windowName = window.getName();
+        if (windowName == null) {
+            return false;
+        }
 
-        if (windowName != null && windowName.startsWith("dialog") && !IsKnownWindowTitle(title))
+        String title = Common.getTitle(window);
+        if (IsKnownWindowTitle(title)) {
+            return false;
+        }
+
+        if (windowName.startsWith("dialog"))
         {
             LogWindowContents(window);
 
@@ -1377,6 +1458,18 @@ public class WindowEventListener implements AWTEventListener {
             }
 
             this.automater.logMessage("Unknown message window detected: " + text);
+
+            return true;
+        }
+
+        // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
+        // so dump their contents for diagnostics, without emitting the
+        // "Unknown message window detected" error marker
+        if (windowName.equals("IBKR Gateway") && window != this.automater.getMainWindow())
+        {
+            LogWindowContents(window);
+
+            this.automater.logMessage("Unhandled window detected - Window title: [" + title + "]");
 
             return true;
         }
@@ -1561,7 +1654,13 @@ public class WindowEventListener implements AWTEventListener {
             }
             else if (component instanceof JCheckBox)
             {
-                text = " - JCheckBox Text: [" + ((JCheckBox) component).getText() + "]";
+                JCheckBox checkBox = (JCheckBox) component;
+                text = " - JCheckBox Text: [" + checkBox.getText() + "] - Selected: [" + checkBox.isSelected() + "] - Enabled: [" + checkBox.isEnabled() + "]";
+            }
+            else if (component instanceof JButton)
+            {
+                JButton button = (JButton) component;
+                text = " - JButton Text: [" + button.getText() + "] - Enabled: [" + button.isEnabled() + "]";
             }
             else if (component instanceof JOptionPane)
             {
