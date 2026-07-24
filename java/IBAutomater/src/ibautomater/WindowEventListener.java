@@ -903,6 +903,7 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Financial Advisor warning window.
+     * - logs the window structure
      * - clicks the "Yes" button
      *
      * @param window The window instance
@@ -918,10 +919,17 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Financial Advisor Warning")) {
+            
+            LogWindowContents(window);
+
             String buttonText = "Yes";
             JButton button = Common.getButton(window, buttonText);
 
             if (button != null) {
+                if (!button.isEnabled()) {
+                    // doClick() on a disabled button is a silent no-op
+                    this.automater.logMessage("Error: Financial Advisor Warning window: the [" + buttonText + "] button is disabled.");
+                }
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
             }
@@ -1463,9 +1471,9 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
-        // so dump their contents for diagnostics, without emitting the
-        // "Unknown message window detected" error marker
-        if (windowName.equals("IBKR Gateway") && window != this.automater.getMainWindow())
+        // so dump the contents of any unhandled window regardless of its name,
+        // without emitting the "Unknown message window detected" error marker
+        if (window != this.automater.getMainWindow())
         {
             LogWindowContents(window);
 
