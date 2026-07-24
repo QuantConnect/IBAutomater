@@ -741,7 +741,11 @@ public class WindowEventListener implements AWTEventListener {
             if (component instanceof JCheckBox) {
                 JCheckBox checkBox = (JCheckBox) component;
                 String checkBoxText = checkBox.getText();
-                if (checkBoxText != null && checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
+                if (checkBoxText == null) {
+                    continue;
+                }
+                this.automater.logMessage("Checkbox: [" + checkBoxText + "] - Selected: [" + checkBox.isSelected() + "]");
+                if (checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
                     this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
                     checkBox.setSelected(true);
                 }
