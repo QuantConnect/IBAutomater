@@ -909,6 +909,7 @@ public class WindowEventListener implements AWTEventListener {
      * Detects and handles the Financial Advisor warning window.
      * - logs the window structure
      * - clicks the "Yes" button
+     * - checks whether the window closed after the click
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -936,6 +937,21 @@ public class WindowEventListener implements AWTEventListener {
                 }
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+
+                // The flagged order is not transmitted until this window closes,
+                // so check whether the click was effective
+                new Thread(()-> {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    if (window.isDisplayable()) {
+                        this.automater.logMessage("Error: Financial Advisor Warning window still open after clicking [" + buttonText + "], the order will not be transmitted");
+                        SwingUtilities.invokeLater(() -> LogWindowContents(window));
+                    }
+                }).start();
             }
             else {
                 throw new Exception("Button not found: [" + buttonText + "]");
