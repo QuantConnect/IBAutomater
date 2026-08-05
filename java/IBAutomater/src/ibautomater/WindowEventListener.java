@@ -949,7 +949,14 @@ public class WindowEventListener implements AWTEventListener {
 
                     if (window.isDisplayable()) {
                         this.automater.logMessage("Error: Financial Advisor Warning window still open after clicking [" + buttonText + "], the order will not be transmitted");
-                        SwingUtilities.invokeLater(() -> LogWindowContents(window));
+                        // an exception here would be uncaught on the EDT, eventDispatched cannot cover this path
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                LogWindowContents(window);
+                            } catch (Exception e) {
+                                this.automater.logError(e);
+                            }
+                        });
                     }
                 }).start();
             }
@@ -1492,8 +1499,12 @@ public class WindowEventListener implements AWTEventListener {
 
         // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
         // so dump the contents of any unhandled window regardless of its name,
-        // without emitting the "Unknown message window detected" error marker
-        if (window != this.automater.getMainWindow())
+        // without emitting the "Unknown message window detected" error marker.
+        // The main window cannot be excluded by identity alone: its WINDOW_OPENED event can
+        // arrive before it is registered, so we also skip any window with the File/Close menu
+        // (the main window fingerprint, cf. ShutdownTask) to avoid dumping the whole frame
+        if (window != this.automater.getMainWindow()
+            && Common.getMenuItem(window, "File", "Close") == null)
         {
             LogWindowContents(window);
 
@@ -1692,7 +1703,8 @@ public class WindowEventListener implements AWTEventListener {
             }
             else if (component instanceof JOptionPane)
             {
-                text = " - JOptionPane Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
+                // getMessage() can be null, which would abort the whole dump mid-window
+                text = " - JOptionPane Message: [" + String.valueOf(((JOptionPane) component).getMessage()) + "]";
             }
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
