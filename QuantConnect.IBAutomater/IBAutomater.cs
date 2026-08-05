@@ -665,6 +665,13 @@ namespace QuantConnect.IBAutomater
                 }
                 else
                 {
+                    // The restarted gateway is expected to close itself shortly (e.g. weekly restart
+                    // with an expired auto-restart token). If it fails to do so, it would be left
+                    // running but unauthenticated, and the client would skip the cold start (with
+                    // full authentication) seeing the gateway is still running.
+                    // So we make sure it is actually stopped before reporting the exit.
+                    EnsureGatewayIsStopped();
+
                     Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
                 }
             }
@@ -673,6 +680,39 @@ namespace QuantConnect.IBAutomater
                 // Let's rename the gateway program back to its original name
                 RenameIbGatewayProgram(true);
                 Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
+            }
+        }
+
+        /// <summary>
+        /// Ensures the gateway process is not left running when it is expected to have closed itself,
+        /// so the client can safely perform a cold start (with full authentication) afterwards.
+        /// </summary>
+        private void EnsureGatewayIsStopped()
+        {
+            try
+            {
+                var process = _process;
+                if (process == null || process.HasExited)
+                {
+                    return;
+                }
+
+                // give the gateway some time to close itself gracefully,
+                // the java agent will force an exit if closing the main window fails
+                if (process.WaitForExit(90000))
+                {
+                    return;
+                }
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                    "IBGateway was expected to close but is still running, stopping it."));
+
+                Stop();
+            }
+            catch (Exception exception)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                    $"EnsureGatewayIsStopped(): error stopping the gateway: {exception.Message}"));
             }
         }
 

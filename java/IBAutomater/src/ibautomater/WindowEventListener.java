@@ -1590,6 +1590,7 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Closes the main window.
      */
+    @SuppressWarnings("SleepWhileInLoop")
     private void CloseMainWindow()
     {
         new Thread(()-> {
@@ -1600,15 +1601,34 @@ public class WindowEventListener implements AWTEventListener {
             executor.execute(() -> {
                 try {
                     Window mainWindow = this.automater.getMainWindow();
+
+                    // The main window can still be unknown at this point, e.g. after an auto-restart
+                    // the "auto-restart token expired" dialog can open before the new main window
+                    // is registered, so we find it like ShutdownTask does instead of failing
+                    // with a null reference and leaving the gateway running
+                    while (mainWindow == null) {
+                        this.automater.logMessage("Main window not found, waiting...");
+                        Thread.sleep(1000);
+
+                        for (Window window : Window.getWindows()) {
+                            if (Common.getMenuItem(window, "File", "Close") != null) {
+                                mainWindow = window;
+                                break;
+                            }
+                        }
+                    }
+
                     this.automater.logMessage("Closing main window - Window title: [" + Common.getTitle(mainWindow) + "] - Window name: [" + mainWindow.getName() + "]");
-                    ((JFrame) this.automater.getMainWindow()).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-                    WindowEvent closingEvent = new WindowEvent(this.automater.getMainWindow(), WindowEvent.WINDOW_CLOSING);
+                    ((JFrame) mainWindow).setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                    WindowEvent closingEvent = new WindowEvent(mainWindow, WindowEvent.WINDOW_CLOSING);
                     Toolkit.getDefaultToolkit().getSystemEventQueue().postEvent(closingEvent);
                     this.automater.logMessage("Close main window message sent");
                 } catch (Exception e) {
                     this.automater.logMessage("CloseMainWindow execute error: " + e.getMessage());
                 }
             });
+
+            executor.shutdown();
 
             try {
                 if (!executor.awaitTermination(30, TimeUnit.SECONDS))
@@ -1619,7 +1639,18 @@ public class WindowEventListener implements AWTEventListener {
                 this.automater.logMessage("CloseMainWindow await error: " + e.getMessage());
             }
 
-            this.automater.logMessage("CloseMainWindow thread ended");
+            // Every caller needs the gateway process to exit: the client waits for the process
+            // exit to perform a cold start with full authentication, so a gateway left running
+            // here would stay alive but unauthenticated. If we are still running after the
+            // close attempt, we exit the process as a last resort.
+            try {
+                Thread.sleep(30000);
+            } catch (InterruptedException e) {
+                // ignored
+            }
+
+            this.automater.logMessage("IBGateway did not close after CloseMainWindow, exiting the process");
+            System.exit(0);
 
         }).start();
     }
