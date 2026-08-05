@@ -1606,7 +1606,7 @@ public class WindowEventListener implements AWTEventListener {
                     // the "auto-restart token expired" dialog can open before the new main window
                     // is registered, so we find it like ShutdownTask does instead of failing
                     // with a null reference and leaving the gateway running
-                    while (mainWindow == null) {
+                    for (int attempt = 0; mainWindow == null && attempt < 20; attempt++) {
                         this.automater.logMessage("Main window not found, waiting...");
                         Thread.sleep(1000);
 
@@ -1616,6 +1616,11 @@ public class WindowEventListener implements AWTEventListener {
                                 break;
                             }
                         }
+                    }
+
+                    if (mainWindow == null) {
+                        this.automater.logMessage("Main window not found, giving up");
+                        return;
                     }
 
                     this.automater.logMessage("Closing main window - Window title: [" + Common.getTitle(mainWindow) + "] - Window name: [" + mainWindow.getName() + "]");
@@ -1641,16 +1646,33 @@ public class WindowEventListener implements AWTEventListener {
 
             // Every caller needs the gateway process to exit: the client waits for the process
             // exit to perform a cold start with full authentication, so a gateway left running
-            // here would stay alive but unauthenticated. If we are still running after the
-            // close attempt, we exit the process as a last resort.
+            // here would stay alive but unauthenticated. If the close did not complete after the
+            // wait below, we exit the process as a last resort.
+            // Note the client waits 90 seconds for this process to exit before stopping it
+            // externally, so this fallback (~60s worst case) must stay well within that budget.
             try {
                 Thread.sleep(30000);
             } catch (InterruptedException e) {
                 // ignored
             }
 
-            this.automater.logMessage("IBGateway did not close after CloseMainWindow, exiting the process");
-            System.exit(0);
+            // A window that is still displayable means the close did not complete. We cannot rely
+            // on getMainWindow() here (it can be unregistered in the very scenario above), and a
+            // slow but succeeding close has already disposed its windows, so we leave it alone.
+            boolean isAnyWindowDisplayable = false;
+            for (Window window : Window.getWindows()) {
+                if (window.isDisplayable()) {
+                    isAnyWindowDisplayable = true;
+                    break;
+                }
+            }
+
+            if (isAnyWindowDisplayable) {
+                this.automater.logMessage("IBGateway did not close after CloseMainWindow, exiting the process");
+                System.exit(0);
+            }
+
+            this.automater.logMessage("CloseMainWindow thread ended");
 
         }).start();
     }

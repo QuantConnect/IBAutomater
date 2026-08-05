@@ -697,8 +697,10 @@ namespace QuantConnect.IBAutomater
                     return;
                 }
 
-                // give the gateway some time to close itself gracefully,
-                // the java agent will force an exit if closing the main window fails
+                // give the gateway some time to close itself gracefully: the java agent waits
+                // up to ~30s for the close to execute and force-exits the process ~30s later
+                // (~60s worst case), so waiting 90s leaves slack for that fallback to land
+                // before we take over and stop it ourselves
                 if (process.WaitForExit(90000))
                 {
                     return;
@@ -706,6 +708,11 @@ namespace QuantConnect.IBAutomater
 
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
                     "IBGateway was expected to close but is still running, stopping it."));
+
+                // Stop() kills the process, which would fire OnProcessExited a second time for
+                // this same gateway death; our caller is already reporting the exit, so we
+                // unsubscribe from this handle to avoid two competing restarts on the client
+                process.Exited -= OnProcessExited;
 
                 Stop();
             }
