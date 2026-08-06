@@ -650,6 +650,12 @@ namespace QuantConnect.IBAutomater
 
                     _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
 
+                    // the relaunched gateway may still be running (e.g. the token-expired dialog
+                    // text changed and fell through to an unknown-window error, or initialization
+                    // timed out): make sure it is stopped before reporting the exit, otherwise the
+                    // client would see it running and skip the cold start (with full authentication)
+                    EnsureGatewayIsStopped();
+
                     // fire Exited event so the client can reconnect or die
                     Exited?.Invoke(this, new ExitedEventArgs(0));
                     return;

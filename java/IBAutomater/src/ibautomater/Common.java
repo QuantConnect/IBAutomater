@@ -210,7 +210,10 @@ public class Common {
      * @return Returns a JMenuItem instance in the given container with the specified text, null if the menu item is not found
      */
     public static JMenuItem getMenuItem(Container container, String menuText, String menuItemText) {
-        if (container == null) return null;
+        // Callers pass arbitrary windows (e.g. scanning Window.getWindows() for the main window,
+        // or inspecting unknown dialogs), so guard the cast: only a JFrame carries a menu bar,
+        // anything else (a JDialog, a bare Window) simply has no menu item to find
+        if (!(container instanceof JFrame)) return null;
         JMenuBar menuBar = ((JFrame) container).getJMenuBar();
         if (menuBar == null) return null;
         for (int i = 0; i < menuBar.getMenuCount(); ++i) {
