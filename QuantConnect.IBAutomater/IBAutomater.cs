@@ -650,6 +650,12 @@ namespace QuantConnect.IBAutomater
 
                     _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
 
+                    // the relaunched gateway may still be running (e.g. the token-expired dialog
+                    // text changed and fell through to an unknown-window error, or initialization
+                    // timed out): make sure it is stopped before reporting the exit, otherwise the
+                    // client would see it running and skip the cold start (with full authentication)
+                    EnsureGatewayIsStopped();
+
                     // fire Exited event so the client can reconnect or die
                     Exited?.Invoke(this, new ExitedEventArgs(0));
                     return;
@@ -665,6 +671,13 @@ namespace QuantConnect.IBAutomater
                 }
                 else
                 {
+                    // The restarted gateway is expected to close itself shortly (e.g. weekly restart
+                    // with an expired auto-restart token). If it fails to do so, it would be left
+                    // running but unauthenticated, and the client would skip the cold start (with
+                    // full authentication) seeing the gateway is still running.
+                    // So we make sure it is actually stopped before reporting the exit.
+                    EnsureGatewayIsStopped();
+
                     Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
                 }
             }
@@ -673,6 +686,46 @@ namespace QuantConnect.IBAutomater
                 // Let's rename the gateway program back to its original name
                 RenameIbGatewayProgram(true);
                 Exited?.Invoke(this, new ExitedEventArgs(GetProcessExitCode(_process)));
+            }
+        }
+
+        /// <summary>
+        /// Ensures the gateway process is not left running when it is expected to have closed itself,
+        /// so the client can safely perform a cold start (with full authentication) afterwards.
+        /// </summary>
+        private void EnsureGatewayIsStopped()
+        {
+            try
+            {
+                var process = _process;
+                if (process == null || process.HasExited)
+                {
+                    return;
+                }
+
+                // give the gateway some time to close itself gracefully: the java agent waits
+                // up to ~30s for the close to execute and force-exits the process ~30s later
+                // (~60s worst case), so waiting 90s leaves slack for that fallback to land
+                // before we take over and stop it ourselves
+                if (process.WaitForExit(90000))
+                {
+                    return;
+                }
+
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                    "IBGateway was expected to close but is still running, stopping it."));
+
+                // Stop() kills the process, which would fire OnProcessExited a second time for
+                // this same gateway death; our caller is already reporting the exit, so we
+                // unsubscribe from this handle to avoid two competing restarts on the client
+                process.Exited -= OnProcessExited;
+
+                Stop();
+            }
+            catch (Exception exception)
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
+                    $"EnsureGatewayIsStopped(): error stopping the gateway: {exception.Message}"));
             }
         }
 
