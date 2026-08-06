@@ -741,7 +741,11 @@ public class WindowEventListener implements AWTEventListener {
             if (component instanceof JCheckBox) {
                 JCheckBox checkBox = (JCheckBox) component;
                 String checkBoxText = checkBox.getText();
-                if (checkBoxText != null && checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
+                if (checkBoxText == null) {
+                    continue;
+                }
+                this.automater.logMessage("Checkbox: [" + checkBoxText + "] - Selected: [" + checkBox.isSelected() + "]");
+                if (checkBoxText.startsWith("Bypass") && !checkBox.isSelected()) {
                     this.automater.logMessage("Select checkbox: [" + checkBoxText + "]");
                     checkBox.setSelected(true);
                 }
@@ -903,7 +907,9 @@ public class WindowEventListener implements AWTEventListener {
 
     /**
      * Detects and handles the Financial Advisor warning window.
+     * - logs the window structure
      * - clicks the "Yes" button
+     * - checks whether the window closed after the click
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -918,12 +924,41 @@ public class WindowEventListener implements AWTEventListener {
         String title = Common.getTitle(window);
 
         if (title != null && title.contains("Financial Advisor Warning")) {
+            
+            LogWindowContents(window);
+
             String buttonText = "Yes";
             JButton button = Common.getButton(window, buttonText);
 
             if (button != null) {
+                if (!button.isEnabled()) {
+                    // doClick() on a disabled button is a silent no-op
+                    this.automater.logMessage("Error: Financial Advisor Warning window: the [" + buttonText + "] button is disabled.");
+                }
                 this.automater.logMessage("Click button: [" + buttonText + "]");
                 button.doClick();
+
+                // The flagged order is not transmitted until this window closes,
+                // so check whether the click was effective
+                new Thread(()-> {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    if (window.isDisplayable()) {
+                        this.automater.logMessage("Error: Financial Advisor Warning window still open after clicking [" + buttonText + "], the order will not be transmitted");
+                        // an exception here would be uncaught on the EDT, eventDispatched cannot cover this path
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                LogWindowContents(window);
+                            } catch (Exception e) {
+                                this.automater.logError(e);
+                            }
+                        });
+                    }
+                }).start();
             }
             else {
                 throw new Exception("Button not found: [" + buttonText + "]");
@@ -1463,9 +1498,13 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         // newer gateway versions name their windows "IBKR Gateway" instead of "dialogN",
-        // so dump their contents for diagnostics, without emitting the
-        // "Unknown message window detected" error marker
-        if (windowName.equals("IBKR Gateway") && window != this.automater.getMainWindow())
+        // so dump the contents of any unhandled window regardless of its name,
+        // without emitting the "Unknown message window detected" error marker.
+        // The main window cannot be excluded by identity alone: its WINDOW_OPENED event can
+        // arrive before it is registered, so we also skip any window with the File/Close menu
+        // (the main window fingerprint, cf. ShutdownTask) to avoid dumping the whole frame
+        if (window != this.automater.getMainWindow()
+            && Common.getMenuItem(window, "File", "Close") == null)
         {
             LogWindowContents(window);
 
@@ -1664,7 +1703,8 @@ public class WindowEventListener implements AWTEventListener {
             }
             else if (component instanceof JOptionPane)
             {
-                text = " - JOptionPane Message: [" + ((JOptionPane) component).getMessage().toString() + "]";
+                // getMessage() can be null, which would abort the whole dump mid-window
+                text = " - JOptionPane Message: [" + String.valueOf(((JOptionPane) component).getMessage()) + "]";
             }
             this.automater.logMessage("DEBUG: - Component: [" + component.toString() + "]" + text);
         });
