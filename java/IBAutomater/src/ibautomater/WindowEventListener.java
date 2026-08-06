@@ -1646,33 +1646,40 @@ public class WindowEventListener implements AWTEventListener {
 
             // Every caller needs the gateway process to exit: the client waits for the process
             // exit to perform a cold start with full authentication, so a gateway left running
-            // here would stay alive but unauthenticated. If the close did not complete after the
-            // wait below, we exit the process as a last resort.
+            // here would stay alive but unauthenticated. If the close does not complete within
+            // the grace period below, we exit the process as a last resort.
+            //
+            // Give the close time to take effect, but stop as soon as it has: a window that is
+            // still displayable means the close did not complete, while a succeeding close has
+            // already disposed its windows. We poll rather than sleeping a flat interval so the
+            // happy path returns promptly instead of holding the JVM alive on this non-daemon
+            // thread for the whole period. We cannot rely on getMainWindow() here (it can be
+            // unregistered in the very scenario above), hence the displayable-window check.
             // Note the client waits 90 seconds for this process to exit before stopping it
-            // externally, so this fallback (~60s worst case) must stay well within that budget.
+            // externally, so this fallback (~30s worst case) must stay well within that budget.
             try {
-                Thread.sleep(30000);
+                for (int attempt = 0; attempt < 30; attempt++) {
+                    Thread.sleep(1000);
+
+                    boolean isAnyWindowDisplayable = false;
+                    for (Window window : Window.getWindows()) {
+                        if (window.isDisplayable()) {
+                            isAnyWindowDisplayable = true;
+                            break;
+                        }
+                    }
+
+                    if (!isAnyWindowDisplayable) {
+                        this.automater.logMessage("CloseMainWindow thread ended");
+                        return;
+                    }
+                }
             } catch (InterruptedException e) {
                 // ignored
             }
 
-            // A window that is still displayable means the close did not complete. We cannot rely
-            // on getMainWindow() here (it can be unregistered in the very scenario above), and a
-            // slow but succeeding close has already disposed its windows, so we leave it alone.
-            boolean isAnyWindowDisplayable = false;
-            for (Window window : Window.getWindows()) {
-                if (window.isDisplayable()) {
-                    isAnyWindowDisplayable = true;
-                    break;
-                }
-            }
-
-            if (isAnyWindowDisplayable) {
-                this.automater.logMessage("IBGateway did not close after CloseMainWindow, exiting the process");
-                System.exit(0);
-            }
-
-            this.automater.logMessage("CloseMainWindow thread ended");
+            this.automater.logMessage("IBGateway did not close after CloseMainWindow, exiting the process");
+            System.exit(0);
 
         }).start();
     }
