@@ -25,11 +25,8 @@ import java.io.File;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
-import java.util.WeakHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -77,23 +74,8 @@ public class WindowEventListener implements AWTEventListener {
 
     private int twoFactorConfirmationAttempts = 0;
     private final int maxTwoFactorConfirmationAttempts = 3;
-
+    
     private ScheduledFuture<?> twoFATimeoutFuture;
-
-    private final int maxFinancialAdvisorWarningClickAttempts = 5;
-    private final int financialAdvisorWarningRetryDelayMillis = 1000;
-    // Windows for which a Financial Advisor Warning click/retry chain has already been started,
-    // so a pending retry and a fresh WINDOW_OPENED for the same dialog do not fight each other.
-    // Only touched on the EDT, so no synchronization is needed; weak keys so closed dialogs
-    // do not accumulate.
-    private final Set<Window> handledFinancialAdvisorWarningWindows =
-        Collections.newSetFromMap(new WeakHashMap<Window, Boolean>());
-    private final ScheduledExecutorService financialAdvisorWarningScheduler =
-        Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "FinancialAdvisorWarningRetry");
-            thread.setDaemon(true);
-            return thread;
-        });
 
     /**
      * Creates a new instance of the {@link WindowEventListener} class.
@@ -926,8 +908,8 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Financial Advisor warning window.
      * - logs the window structure
-     * - clicks the "Yes" button once the dialog is fully shown
-     * - retries the click a bounded number of times if the window does not close
+     * - clicks the "Yes" button
+     * - checks whether the window closed after the click
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -935,119 +917,57 @@ public class WindowEventListener implements AWTEventListener {
      * @return Returns true if the window was detected and handled
      */
     private boolean HandleFinancialAdvisorWarningWindow(Window window, int eventId) throws Exception {
-        if (eventId != WindowEvent.WINDOW_OPENED && eventId != WindowEvent.WINDOW_CLOSED) {
+        if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
 
         String title = Common.getTitle(window);
 
-        if (title == null || !title.contains("Financial Advisor Warning")) {
-            return false;
-        }
+        if (title != null && title.contains("Financial Advisor Warning")) {
+            
+            LogWindowContents(window);
 
-        if (eventId == WindowEvent.WINDOW_CLOSED) {
-            // the gateway could reuse the dialog instance for a later warning,
-            // allow it to be handled again
-            this.handledFinancialAdvisorWarningWindows.remove(window);
+            String buttonText = "Yes";
+            JButton button = Common.getButton(window, buttonText);
+
+            if (button != null) {
+                if (!button.isEnabled()) {
+                    // doClick() on a disabled button is a silent no-op
+                    this.automater.logMessage("Error: Financial Advisor Warning window: the [" + buttonText + "] button is disabled.");
+                }
+                this.automater.logMessage("Click button: [" + buttonText + "]");
+                button.doClick();
+
+                // The flagged order is not transmitted until this window closes,
+                // so check whether the click was effective
+                new Thread(()-> {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+
+                    if (window.isDisplayable()) {
+                        this.automater.logMessage("Error: Financial Advisor Warning window still open after clicking [" + buttonText + "], the order will not be transmitted");
+                        // an exception here would be uncaught on the EDT, eventDispatched cannot cover this path
+                        SwingUtilities.invokeLater(() -> {
+                            try {
+                                LogWindowContents(window);
+                            } catch (Exception e) {
+                                this.automater.logError(e);
+                            }
+                        });
+                    }
+                }).start();
+            }
+            else {
+                throw new Exception("Button not found: [" + buttonText + "]");
+            }
+
             return true;
         }
 
-        if (!this.handledFinancialAdvisorWarningWindows.add(window)) {
-            // a click/retry chain is already running for this window, do not start a second one
-            return true;
-        }
-
-        LogWindowContents(window);
-
-        // WINDOW_OPENED is dispatched while the modal dialog is still inside its setVisible(true)
-        // show sequence, before its nested event pump is established. Dismissing the dialog from
-        // here races that sequence and the click can be lost when several dialogs stack (one per
-        // order), leaving the flagged orders untransmitted (issue #109).
-        // Defer the click until the dialog is fully shown.
-        SwingUtilities.invokeLater(() -> ClickFinancialAdvisorWarningYesButton(window, 1));
-
-        return true;
-    }
-
-    /**
-     * Clicks the "Yes" button of the Financial Advisor Warning window and verifies that the
-     * window closes, retrying the click a bounded number of times if it does not.
-     * The flagged order is not transmitted until this window closes, so a lost click means
-     * a lost order: the retry converts it into a delayed one.
-     * Always runs on the EDT (via {@link SwingUtilities#invokeLater}).
-     *
-     * @param window The Financial Advisor Warning window instance
-     * @param attempt The current click attempt (1-based)
-     */
-    private void ClickFinancialAdvisorWarningYesButton(Window window, int attempt) {
-        if (IsFinancialAdvisorWarningWindowDismissed(window)) {
-            return;
-        }
-
-        String buttonText = "Yes";
-        // re-resolve the button on every attempt, the option pane may have been rebuilt
-        JButton button = Common.getButton(window, buttonText);
-        if (button == null) {
-            // a thrown exception would be uncaught here (invoked via invokeLater), log instead
-            this.automater.logMessage("Button not found: [" + buttonText + "]");
-            return;
-        }
-
-        if (!button.isEnabled()) {
-            // doClick() on a disabled button is a silent no-op
-            this.automater.logMessage("Error: Financial Advisor Warning window: the [" + buttonText + "] button is disabled.");
-        }
-
-        this.automater.logMessage("Click button: [" + buttonText + "] (attempt " + attempt + "/" + this.maxFinancialAdvisorWarningClickAttempts + ")");
-        // doClick() with no arguments sleeps 68 ms on the EDT, stalling the event queue
-        // while further stacked dialogs wait to be dispatched, so click without the delay
-        button.doClick(0);
-
-        this.financialAdvisorWarningScheduler.schedule(() -> SwingUtilities.invokeLater(() -> {
-            try {
-                if (IsFinancialAdvisorWarningWindowDismissed(window)) {
-                    return;
-                }
-
-                if (attempt >= this.maxFinancialAdvisorWarningClickAttempts) {
-                    this.automater.logMessage("Error: Financial Advisor Warning window still open after clicking [" + buttonText + "] "
-                        + attempt + " times, the order will not be transmitted");
-                    LogWindowContents(window);
-                    return;
-                }
-
-                this.automater.logMessage("Financial Advisor Warning window still open after clicking [" + buttonText + "], retrying");
-                ClickFinancialAdvisorWarningYesButton(window, attempt + 1);
-            }
-            catch (Exception e) {
-                this.automater.logError(e);
-            }
-        }), (long)this.financialAdvisorWarningRetryDelayMillis * attempt, TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * Gets whether the Financial Advisor Warning window has been dismissed.
-     * isDisplayable() turns false only after dispose(), while isVisible() also turns false
-     * after setVisible(false): a hidden but not yet disposed dialog was dismissed as well
-     * and must not be reported as still open nor clicked again.
-     *
-     * @param window The Financial Advisor Warning window instance
-     *
-     * @return Returns true if the window has been dismissed
-     */
-    private boolean IsFinancialAdvisorWarningWindowDismissed(Window window) {
-        boolean displayable = window.isDisplayable();
-        boolean visible = window.isVisible();
-
-        if (displayable && visible) {
-            return false;
-        }
-
-        if (displayable != visible) {
-            this.automater.logMessage("Financial Advisor Warning window dismissed - Displayable: [" + displayable + "] - Visible: [" + visible + "]");
-        }
-
-        return true;
+        return false;
     }
 
     /**
