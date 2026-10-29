@@ -1,0 +1,52 @@
+name: Publish NuGet
+
+on:
+  # Publishing a GitHub release builds and pushes the package, using the release tag as the version (e.g. 2.0.93)
+  release:
+    types: [published]
+  # Manual runs only build the package and attach it to the run, nothing is pushed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version, defaults to the csproj version
+        required: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # lets NuGet/login exchange the GitHub OIDC token for a short-lived nuget.org API key
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # The temporary API key expires after 1 hour, plenty for the build below
+      - name: NuGet login
+        if: github.event_name == 'release'
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # Only pushes when NUGET_API_KEY is set, which is the case for releases
+      - name: Build and push
+        env:
+          VERSION: ${{ github.event.release.tag_name || inputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: ./build_push_nuget.sh "$VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuget
+          path: artifacts/*.nupkg
