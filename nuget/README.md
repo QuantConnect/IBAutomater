@@ -1,11 +1,9 @@
 ## How to create a new version of the NuGet package
 
-Packages are built and pushed to nuget.org by the [Publish NuGet](../.github/workflows/publish.yml) workflow.
+- Set the version number in the `QuantConnect.IBAutomater.csproj` file and merge it to master
+- Run the [Publish NuGet](../.github/workflows/publish.yml) workflow from the Actions tab, which builds the package and pushes it to nuget.org with `build_push_nuget.sh`
 
-- Create a new GitHub release whose tag is the package version, e.g. `2.0.93` (a leading `v` is ignored)
-- Publishing the release runs the workflow, which builds the package and pushes it to nuget.org with `build_push_nuget.sh`
-
-Running the workflow manually only builds the package and attaches it to the run, so it can be used to check the build without publishing.
+nuget.org rejects versions that already exist, so the workflow fails if the version was not changed.
 
 #### nuget.org authentication
 
@@ -17,9 +15,9 @@ The workflow uses [Trusted Publishing](https://learn.microsoft.com/nuget/nuget-o
 #### Build the package locally
 
 ```
-./build_push_nuget.sh [version]
+./build_push_nuget.sh
 ```
 
-Builds `java/IBAutomater/dist/IBAutomater.jar` with Ant, then packs `artifacts/QuantConnect.IBAutomater.<version>.nupkg`. Without a version, the `<Version>` in `QuantConnect.IBAutomater.csproj` is used. The package is only pushed to nuget.org when the `NUGET_API_KEY` environment variable is set.
+Builds `java/IBAutomater/dist/IBAutomater.jar` with Ant, then packs `artifacts/QuantConnect.IBAutomater.<version>.nupkg` with the version in the csproj. The package is only pushed to nuget.org when the `NUGET_API_KEY` environment variable is set.
 
 It requires a JDK, Ant and the .NET 10 SDK. On Windows, run it from Git Bash; the JDK and Ant bundled with NetBeans are used when none are on the PATH.
