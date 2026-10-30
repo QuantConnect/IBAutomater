@@ -259,9 +259,10 @@ namespace QuantConnect.IBAutomater
 
                 if (_lastStartResult.HasError)
                 {
-                    if (_lastStartResult.ErrorCode != ErrorCode.TwoFactorConfirmationTimeout)
+                    if (_lastStartResult.ErrorCode != ErrorCode.TwoFactorConfirmationTimeout
+                        && _lastStartResult.ErrorCode != ErrorCode.InitializationTimeout)
                     {
-                        // IBAutomater errors are unrecoverable, except for 2FA timeouts
+                        // IBAutomater errors are unrecoverable, except for 2FA and initialization timeouts
                         return _lastStartResult;
                     }
 
@@ -646,9 +647,14 @@ namespace QuantConnect.IBAutomater
 
                 if (startResult.HasError)
                 {
+                    // the auto-restart is over: the exit of the relaunched gateway must not be handled as another one
+                    _isRestartInProgress = false;
+
                     TraceIbLauncherLogFile();
 
-                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
+                    // keep the actual error (e.g. a rejected login) so the client can report it,
+                    // including the ones Start returns without storing them
+                    _lastStartResult = startResult;
 
                     // the relaunched gateway may still be running (e.g. the token-expired dialog
                     // text changed and fell through to an unknown-window error, or initialization
