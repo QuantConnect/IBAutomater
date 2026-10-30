@@ -29,9 +29,18 @@ namespace CSharpDemoIBAutomater
             var ibPassword = "mypassword";
             var ibTradingMode = "paper";
             var ibPort = 4002;
+            var useAccountGroupsWithAllocationMethods = false;
 
             // Create a new instance of the IBAutomater class
-            using var automater = new IBAutomater(ibDirectory, ibVersion, ibUserName, ibPassword, ibTradingMode, ibPort, false);
+            using var automater = new IBAutomater(
+                ibDirectory,
+                ibVersion,
+                ibUserName,
+                ibPassword,
+                ibTradingMode,
+                ibPort,
+                false,
+                useAccountGroupsWithAllocationMethods);
 
             // Attach the event handlers
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");

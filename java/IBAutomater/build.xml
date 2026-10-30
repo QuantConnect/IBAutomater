@@ -10,6 +10,29 @@
 <project name="IBAutomater" default="default" basedir=".">
     <description>Builds, tests, and runs the project IBAutomater.</description>
     <import file="nbproject/build-impl.xml"/>
+
+    <!-- The project intentionally has no external Java test dependency. -->
+    <target name="self-test" depends="compile">
+        <mkdir dir="${build.test.classes.dir}"/>
+        <javac srcdir="${test.src.dir}"
+               destdir="${build.test.classes.dir}"
+               source="${javac.source}"
+               target="${javac.target}"
+               encoding="${source.encoding}"
+               includeantruntime="false">
+            <classpath>
+                <pathelement location="${build.classes.dir}"/>
+            </classpath>
+        </javac>
+        <java classname="ibautomater.IBAutomaterSelfTest" fork="true" failonerror="true">
+            <classpath>
+                <pathelement location="${build.classes.dir}"/>
+                <pathelement location="${build.test.classes.dir}"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="test" depends="self-test"/>
     <!--
 
     There exist several targets which are by default empty and which can be 

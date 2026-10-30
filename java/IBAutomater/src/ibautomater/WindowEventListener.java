@@ -17,6 +17,7 @@ package ibautomater;
 
 import java.awt.AWTEvent;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
@@ -25,6 +26,7 @@ import java.io.File;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -35,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JFrame;
@@ -43,6 +46,7 @@ import javax.swing.JList;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JRadioButton;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JTextPane;
@@ -658,9 +662,11 @@ public class WindowEventListener implements AWTEventListener {
      *   - deselects the "Read-Only API" check box
      *   - sets the API Port Number
      *   - selects the "Create API message log file" check box
-     *   - deselects the "Use Account Groups with Allocation Methods" check box
+     *   - sets the "Use Account Groups with Allocation Methods" check box according to configuration
      * - in the Configuration/API/Precautions panel:
      *   - selects the "Bypass Order Precautions for API Orders" check box
+     * - in the Configuration/Messages panel:
+     *   - disables the "Group Allocation Warning" message for unified Financial Advisor groups
      * - in the Configuration/Lock and Exit panel:
      *   - selects the "Auto restart" check box
      * - if requested, opens the Export IB logs window
@@ -717,11 +723,15 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         // v983+
-        String faText = "Use Account Groups with Allocation Methods";
-        JCheckBox faCheckBox = Common.getCheckBox(window, faText);
-        if (faCheckBox != null && faCheckBox.isSelected()) {
-            this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-            faCheckBox.setSelected(false);
+        boolean useAccountGroupsWithAllocationMethods =
+            this.automater.getSettings().getUseAccountGroupsWithAllocationMethods();
+        String financialAdvisorCheckBoxError = ConfigureFinancialAdvisorAllocationGroupsCheckBox(
+            window, useAccountGroupsWithAllocationMethods, this.automater::logMessage);
+        if (financialAdvisorCheckBoxError != null) {
+            this.automater.logMessage(
+                "Error: Financial Advisor allocation groups configuration unavailable: [" +
+                "Use Account Groups with Allocation Methods] - Reason: [" +
+                financialAdvisorCheckBoxError + "]");
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
@@ -750,6 +760,11 @@ public class WindowEventListener implements AWTEventListener {
                     checkBox.setSelected(true);
                 }
             }
+        }
+
+        if (useAccountGroupsWithAllocationMethods) {
+            Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Messages"}));
+            DisableGroupAllocationWarning(window, this.automater::logMessage);
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "Lock and Exit"}));
@@ -813,9 +828,97 @@ public class WindowEventListener implements AWTEventListener {
             SaveIBLogs();
         }
 
-        this.automater.logMessage("Configuration settings updated.");
+        if (financialAdvisorCheckBoxError == null) {
+            this.automater.logMessage("Configuration settings updated.");
+        }
 
         return true;
+    }
+
+    static String ConfigureFinancialAdvisorAllocationGroupsCheckBox(
+        Container container, boolean desiredState, Consumer<String> log) {
+        String checkBoxText = "Use Account Groups with Allocation Methods";
+        List<JCheckBox> matches = new ArrayList<>();
+        for (Component component : Common.getComponents(container)) {
+            if (component instanceof JCheckBox) {
+                JCheckBox checkBox = (JCheckBox)component;
+                String text = checkBox.getText();
+                if (text != null && text.regionMatches(true, 0, checkBoxText, 0, checkBoxText.length())) {
+                    matches.add(checkBox);
+                }
+            }
+        }
+
+        if (matches.isEmpty()) {
+            return desiredState ? "check box not found" : null;
+        }
+        if (desiredState && matches.size() != 1) {
+            return "multiple matching check boxes found";
+        }
+
+        for (JCheckBox checkBox : matches) {
+            if (checkBox.isSelected() != desiredState) {
+                if (desiredState && !checkBox.isEnabled()) {
+                    log.accept("Checkbox: [" + checkBoxText + "] - Selected: [" +
+                        checkBox.isSelected() + "]");
+                    return "check box is disabled and unchecked";
+                }
+                log.accept((desiredState ? "Select" : "Unselect") + " checkbox: [" + checkBoxText + "]");
+                checkBox.setSelected(desiredState);
+            }
+
+            boolean actualState = checkBox.isSelected();
+            log.accept("Checkbox: [" + checkBoxText + "] - Selected: [" + actualState + "]");
+            if (actualState != desiredState) {
+                return "check box did not retain the requested state";
+            }
+        }
+        return null;
+    }
+
+    static void DisableGroupAllocationWarning(Container container, Consumer<String> log) {
+        String messageText = "Group Allocation Warning";
+        for (Component component : Common.getComponents(container)) {
+            if (!(component instanceof JTable)) {
+                continue;
+            }
+
+            JTable table = (JTable)component;
+            int messageColumn = -1;
+            int enabledColumn = -1;
+            for (int column = 0; column < table.getColumnCount(); column++) {
+                String columnName = table.getColumnName(column);
+                if ("Message".equalsIgnoreCase(columnName) ||
+                    "Message Name".equalsIgnoreCase(columnName)) {
+                    messageColumn = column;
+                }
+                else if ("Enabled".equalsIgnoreCase(columnName)) {
+                    enabledColumn = column;
+                }
+            }
+            if (messageColumn == -1 || enabledColumn == -1) {
+                continue;
+            }
+
+            for (int row = 0; row < table.getRowCount(); row++) {
+                Object message = table.getValueAt(row, messageColumn);
+                if (message == null || !messageText.equalsIgnoreCase(message.toString())) {
+                    continue;
+                }
+
+                boolean enabled = Boolean.TRUE.equals(table.getValueAt(row, enabledColumn));
+                log.accept("Message: [" + messageText + "] - Enabled: [" + enabled + "]");
+                if (enabled) {
+                    log.accept("Disable message: [" + messageText + "]");
+                    table.setValueAt(Boolean.FALSE, row, enabledColumn);
+                    log.accept("Message: [" + messageText + "] - Enabled: [" +
+                        Boolean.TRUE.equals(table.getValueAt(row, enabledColumn)) + "]");
+                }
+                return;
+            }
+        }
+
+        log.accept("Message setting not found: [" + messageText + "]");
     }
 
     /**
@@ -908,8 +1011,8 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the Financial Advisor warning window.
      * - logs the window structure
-     * - clicks the "Yes" button
-     * - checks whether the window closed after the click
+     * - clicks the "Accept and Continue" configuration button or the "Yes" order button
+     * - checks whether the window closed after an order-warning click
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -926,6 +1029,14 @@ public class WindowEventListener implements AWTEventListener {
         if (title != null && title.contains("Financial Advisor Warning")) {
             
             LogWindowContents(window);
+
+            String confirmationButtonText = "Accept and Continue";
+            JButton confirmationButton = Common.getButton(window, confirmationButtonText);
+            if (confirmationButton != null) {
+                this.automater.logMessage("Click button: [" + confirmationButtonText + "]");
+                confirmationButton.doClick();
+                return true;
+            }
 
             String buttonText = "Yes";
             JButton button = Common.getButton(window, buttonText);

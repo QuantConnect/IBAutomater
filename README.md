@@ -25,8 +25,18 @@ After doing either of above steps you should now be ready to start using IBAutom
 ``` C#
 using QuantConnect.IBAutomater;
 
+var useAccountGroupsWithAllocationMethods = false;
+
 // Create a new instance of IBAutomater
-_ibAutomater = new IBAutomater.IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, port, exportIbGatewayLogs);
+_ibAutomater = new IBAutomater.IBAutomater(
+    ibDirectory,
+    ibVersion,
+    userName,
+    password,
+    tradingMode,
+    port,
+    exportIbGatewayLogs,
+    useAccountGroupsWithAllocationMethods);
 
 // You can bind to event handlers to receive the output data.
 _ibAutomater.OutputDataReceived += OnIbAutomaterOutputDataReceived;
@@ -46,6 +56,14 @@ _ibAutomater.Start(false);
 // Stop IB Gateway with a simple command.
 _ibAutomater.Stop();
 ```
+
+The original seven-parameter constructor remains supported and retains IBAutomater's established policy of deselecting the IB Gateway **Use Account Groups with Allocation Methods** setting when the recognized check box is selected. The `useAccountGroupsWithAllocationMethods` parameter specifies the desired state: `true` selects the setting and `false` deselects it. IBAutomater locates the control by a case-insensitive match on the stable beginning of its label, accommodating terminal punctuation and other trailing text without broadening other check-box lookups.
+
+The value is fixed when the IBAutomater instance is constructed and is applied again on explicit and automatic IB Gateway restarts. IBAutomater reads the control again after changing it and reports its actual state. When `true`, startup or restart fails and the Gateway is stopped if the v983+ control is absent, disabled while unchecked, or ambiguous. Under either requested state, startup also fails if a present control does not retain that state. Unified Financial Advisor allocation-group routing cannot be established safely after either failure. The returned `StartResult` explains how to verify the Gateway version and account configuration before redeploying.
+
+When unified Financial Advisor groups are enabled, IBAutomater also disables **Messages → Group Allocation Warning** when that setting is present and accepts the Gateway's resulting Financial Advisor confirmation. The warning setting is left unchanged when unified groups are disabled.
+
+For standalone execution, `config.json` can optionally specify `"ib-financial-advisors-unified-groups-enabled": true`; when omitted, the setting defaults to `false`. Library consumers, including LEAN, must pass the corresponding value to the constructor themselves.
 
 ## How it works
 
@@ -220,6 +238,16 @@ To build the NuGet package we need to complete the following three steps in orde
 - Increment the version number in QuantConnect.IBAutomater.csproj
 - Open the solution file: /IBAutomater/IBAutomater.sln
 - Rebuild solution & test locally
+
+The Java self-tests and C# tests can also be run from the command line:
+
+``` bash
+cd java/IBAutomater
+ant clean test jar
+cd ../..
+dotnet build IBAutomater.sln -c Release
+dotnet test IBAutomater.sln -c Release
+```
 
 #### 3. NuGet upload
 

@@ -41,6 +41,7 @@ namespace QuantConnect.IBAutomater
         private readonly string _tradingMode;
         private readonly int _portNumber;
         private readonly bool _exportIbGatewayLogs;
+        private readonly bool _useAccountGroupsWithAllocationMethods;
 
         private volatile bool _isDisposeCalled;
 
@@ -93,6 +94,8 @@ namespace QuantConnect.IBAutomater
         private CancellationTokenSource _gatewaySoftRestartTokenSource;
 
         private const string _ibGatewayExecutableOriginalName = "ibgateway";
+        private const string FinancialAdvisorAllocationGroupsConfigurationUnavailableMarker =
+            "Error: Financial Advisor allocation groups configuration unavailable:";
         private readonly string _ibGatewayExecutableName = $"{_ibGatewayExecutableOriginalName}1";
         private bool _renamedIbGatewayExcecutable;
 
@@ -135,9 +138,23 @@ namespace QuantConnect.IBAutomater
                 ibVersion = config["ib-version"].ToString();
             }
             var exportIbGatewayLogs = config["ib-export-ibgateway-logs"].ToObject<bool>();
+            var useAccountGroupsWithAllocationMethods = false;
+            if (config["ib-financial-advisors-unified-groups-enabled"] != null)
+            {
+                useAccountGroupsWithAllocationMethods =
+                    config["ib-financial-advisors-unified-groups-enabled"].ToObject<bool>();
+            }
 
             // Create a new instance of the IBAutomater class
-            using var automater = new IBAutomater(ibDirectory, ibVersion, userName, password, tradingMode, portNumber, exportIbGatewayLogs);
+            using var automater = new IBAutomater(
+                ibDirectory,
+                ibVersion,
+                userName,
+                password,
+                tradingMode,
+                portNumber,
+                exportIbGatewayLogs,
+                useAccountGroupsWithAllocationMethods);
 
             // Attach the event handlers
             automater.OutputDataReceived += (s, e) => Console.WriteLine($"{DateTime.UtcNow:O} {e.Data}");
@@ -172,6 +189,7 @@ namespace QuantConnect.IBAutomater
 
         /// <summary>
         /// Creates a new instance of the <see cref="IBAutomater"/> class
+        /// and retains the established behavior of deselecting the Use Account Groups with Allocation Methods setting
         /// </summary>
         /// <param name="ibDirectory">The root directory of IB Gateway</param>
         /// <param name="ibVersion">The IB Gateway version to launch</param>
@@ -181,6 +199,33 @@ namespace QuantConnect.IBAutomater
         /// <param name="portNumber">The API port number</param>
         /// <param name="exportIbGatewayLogs">Export IB Gateway logs if true</param>
         public IBAutomater(string ibDirectory, string ibVersion, string userName, string password, string tradingMode, int portNumber, bool exportIbGatewayLogs)
+            : this(ibDirectory, ibVersion, userName, password, tradingMode, portNumber, exportIbGatewayLogs, false)
+        {
+        }
+
+        /// <summary>
+        /// Creates a new instance of the <see cref="IBAutomater"/> class
+        /// </summary>
+        /// <param name="ibDirectory">The root directory of IB Gateway</param>
+        /// <param name="ibVersion">The IB Gateway version to launch</param>
+        /// <param name="userName">The user name</param>
+        /// <param name="password">The password</param>
+        /// <param name="tradingMode">The trading mode ('paper' or 'live')</param>
+        /// <param name="portNumber">The API port number</param>
+        /// <param name="exportIbGatewayLogs">Export IB Gateway logs if true</param>
+        /// <param name="useAccountGroupsWithAllocationMethods">
+        /// The desired state of the Use Account Groups with Allocation Methods setting:
+        /// true selects it; false deselects it
+        /// </param>
+        public IBAutomater(
+            string ibDirectory,
+            string ibVersion,
+            string userName,
+            string password,
+            string tradingMode,
+            int portNumber,
+            bool exportIbGatewayLogs,
+            bool useAccountGroupsWithAllocationMethods)
         {
             _ibDirectory = ibDirectory;
             _ibVersion = ibVersion;
@@ -189,6 +234,7 @@ namespace QuantConnect.IBAutomater
             _tradingMode = tradingMode;
             _portNumber = portNumber;
             _exportIbGatewayLogs = exportIbGatewayLogs;
+            _useAccountGroupsWithAllocationMethods = useAccountGroupsWithAllocationMethods;
 
             _timerLogReader = new Timer(LogReaderTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
 
@@ -394,7 +440,25 @@ namespace QuantConnect.IBAutomater
 
                 if (waitForExit)
                 {
+                    while (!process.WaitForExit(250))
+                    {
+                        if (_ibAutomaterInitializeEvent.WaitOne(0))
+                        {
+                            if (_lastStartResult.ErrorCode == ErrorCode.FinancialAdvisorAllocationGroupsConfigurationUnavailable)
+                            {
+                                process.Exited -= OnProcessExited;
+                                Stop();
+                                return _lastStartResult;
+                            }
+                            break;
+                        }
+                    }
                     process.WaitForExit();
+
+                    if (_lastStartResult.ErrorCode == ErrorCode.FinancialAdvisorAllocationGroupsConfigurationUnavailable)
+                    {
+                        return _lastStartResult;
+                    }
                 }
                 else
                 {
@@ -432,6 +496,12 @@ namespace QuantConnect.IBAutomater
 
                     if (_lastStartResult.HasError)
                     {
+                        if (_lastStartResult.ErrorCode == ErrorCode.FinancialAdvisorAllocationGroupsConfigurationUnavailable)
+                        {
+                            process.Exited -= OnProcessExited;
+                            Stop();
+                        }
+
                         message = $"IBAutomater error - Code: {_lastStartResult.ErrorCode} Message: {_lastStartResult.ErrorMessage}";
                         OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
 
@@ -599,6 +669,16 @@ namespace QuantConnect.IBAutomater
                     _ibAutomaterInitializeEvent.Set();
                 }
 
+                // the requested Financial Advisor allocation groups configuration is unavailable
+                else if (text.StartsWith(FinancialAdvisorAllocationGroupsConfigurationUnavailableMarker,
+                    StringComparison.InvariantCultureIgnoreCase))
+                {
+                    _lastStartResult = new StartResult(
+                        ErrorCode.FinancialAdvisorAllocationGroupsConfigurationUnavailable,
+                        text);
+                    _ibAutomaterInitializeEvent.Set();
+                }
+
                 // initialization completed
                 else if (text.Contains("Configuration settings updated", StringComparison.InvariantCultureIgnoreCase))
                 {
@@ -648,7 +728,10 @@ namespace QuantConnect.IBAutomater
                 {
                     TraceIbLauncherLogFile();
 
-                    _lastStartResult = new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
+                    _lastStartResult =
+                        startResult.ErrorCode == ErrorCode.FinancialAdvisorAllocationGroupsConfigurationUnavailable
+                            ? startResult
+                            : new StartResult(ErrorCode.InitializationTimeout, "Auto-restart timed out");
 
                     // the relaunched gateway may still be running (e.g. the token-expired dialog
                     // text changed and fell through to an unknown-window error, or initialization
@@ -1261,7 +1344,8 @@ namespace QuantConnect.IBAutomater
 
             if (enableJavaAgent)
             {
-                File.WriteAllText(javaAgentConfigFileName, $"{_userName}\n{_password}\n{_tradingMode}\n{_portNumber}\n{_exportIbGatewayLogs}\n{isRestart}");
+                File.WriteAllText(javaAgentConfigFileName,
+                    $"{_userName}\n{_password}\n{_tradingMode}\n{_portNumber}\n{_exportIbGatewayLogs}\n{isRestart}\n{_useAccountGroupsWithAllocationMethods}");
             }
             else
             {
