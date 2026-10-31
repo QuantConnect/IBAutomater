@@ -21,12 +21,17 @@ import java.awt.Toolkit;
 import java.awt.Window;
 import java.awt.event.AWTEventListener;
 import java.awt.event.WindowEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -50,6 +55,8 @@ import javax.swing.JToggleButton;
 import javax.swing.JTree;
 import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.text.JTextComponent;
 import javax.swing.tree.TreePath;
 
 /**
@@ -74,6 +81,22 @@ public class WindowEventListener implements AWTEventListener {
 
     private int twoFactorConfirmationAttempts = 0;
     private final int maxTwoFactorConfirmationAttempts = 3;
+
+    // how long an order confirmation window may stay open before its contents are logged
+    private static final int orderConfirmationTimeoutMs = 10000;
+
+    /**
+     * The buttons that confirm an order confirmation/warning window, in the order they are tried,
+     * mapped to whether the window title must say it is an order confirmation before clicking them.
+     * "Accept and Continue" is only found in these windows, but "Transmit" is also found in the
+     * order ticket, so it is only clicked when the title tells us this is a confirmation window.
+     */
+    private static final Map<String, Boolean> orderConfirmationButtons = new LinkedHashMap<String, Boolean>(){
+        {
+            this.put("Accept and Continue", false);
+            this.put("Transmit", true);
+        }
+    };
     
     private ScheduledFuture<?> twoFATimeoutFuture;
 
@@ -1348,15 +1371,20 @@ public class WindowEventListener implements AWTEventListener {
     /**
      * Detects and handles the order confirmation/warning windows.
      * These windows share the same layout: a message, a
-     * "Don't display this message again." check box and an
-     * "Accept and Continue" button (e.g. "Market Order Confirmation",
+     * "Don't display this message again." check box and a
+     * confirmation button (e.g. "Market Order Confirmation",
      * "Cash Quantity Order Warning"). The window is detected by the
-     * presence of the "Accept and Continue" button rather than by its
-     * title, so any such confirmation window is handled.
+     * presence of one of the {@link #orderConfirmationButtons} rather
+     * than by its title, so any such confirmation window is handled.
      * - reads the message shown to the user and logs it so the brokerage
      *   can surface it to the user as a message
      * - selects the "Don't display this message again." check box
-     * - clicks the "Accept and Continue" button
+     * - clicks the confirmation button
+     *
+     * The "Cryptocurrency order confirmation" disclosure is the same kind of
+     * window but confirms with "Transmit", and the "Bypass ... for API Orders"
+     * precautions do not suppress it. Its button is disabled when the window
+     * opens and enabled about a second later, so the click waits for that.
      *
      * @param window The window instance
      * @param eventId The id of the window event
@@ -1368,14 +1396,16 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
-        String buttonText = "Accept and Continue";
-        JButton button = Common.getButton(window, buttonText);
+        String title = Common.getTitle(window);
+
+        final JButton button = GetOrderConfirmationButton(window, title);
         if (button == null) {
             // not an order confirmation window
             return false;
         }
 
-        String title = Common.getTitle(window);
+        final String buttonText = button.getText();
+
         String content = GetWindowText(window).replaceAll("\\s+", " ").trim();
         String message = (title != null && !title.isEmpty() ? title + ": " : "") + content;
 
@@ -1398,10 +1428,99 @@ public class WindowEventListener implements AWTEventListener {
             this.automater.logMessage("Checkbox not found: [" + checkBoxText + "]");
         }
 
-        this.automater.logMessage("Click button: [" + buttonText + "]");
-        button.doClick();
+        if (button.isEnabled()) {
+            this.automater.logMessage("Click button: [" + buttonText + "]");
+            button.doClick();
+            return true;
+        }
+
+        // doClick() on a disabled button is a silent no-op, Swing tells us when it is enabled
+        this.automater.logMessage("The [" + buttonText + "] confirmation button is disabled, waiting for it");
+
+        final boolean[] clicked = { false };
+        final PropertyChangeListener onEnabled = new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent event) {
+                if (!button.isEnabled() || clicked[0]) {
+                    return;
+                }
+
+                clicked[0] = true;
+                button.removePropertyChangeListener("enabled", this);
+
+                // fired before the button model is enabled, a click now is a no-op
+                SwingUtilities.invokeLater(() -> {
+                    if (!IsWindowOpen(window)) {
+                        return;
+                    }
+
+                    automater.logMessage("Click button: [" + buttonText + "]");
+                    button.doClick();
+                });
+            }
+        };
+        button.addPropertyChangeListener("enabled", onEnabled);
+
+        // whether the button never enabled or the click did not close the window
+        Timer watchdog = new Timer(orderConfirmationTimeoutMs, event -> {
+            button.removePropertyChangeListener("enabled", onEnabled);
+            if (!IsWindowOpen(window)) {
+                return;
+            }
+
+            automater.logMessage("Error: order confirmation window still open after " + orderConfirmationTimeoutMs +
+                "ms, the [" + buttonText + "] button was " + (clicked[0] ? "clicked" : "never enabled") +
+                ", the order will not be transmitted");
+            LogWindowContents(window);
+        });
+        watchdog.setRepeats(false);
+        watchdog.start();
 
         return true;
+    }
+
+    /**
+     * Returns whether the given window is still open.
+     * isDisplayable() turns false only after dispose(), while isVisible() also turns false
+     * after setVisible(false): clicking a dialog can only hide it, with the dispose deferred,
+     * so a hidden window was dismissed as well and must not be clicked again.
+     *
+     * @param window The window instance
+     *
+     * @return Returns true if the window is still open
+     */
+    private static boolean IsWindowOpen(Window window) {
+        return window.isDisplayable() && window.isVisible();
+    }
+
+    /**
+     * Gets the button that confirms an order confirmation/warning window.
+     * The buttons are tried in the order they are declared in {@link #orderConfirmationButtons}
+     * and the ones shared with other windows are only accepted when the title tells us
+     * this is an order confirmation window.
+     *
+     * @param window The window instance
+     * @param title The window title
+     *
+     * @return Returns the confirmation button, null if the window has none
+     */
+    private static JButton GetOrderConfirmationButton(Window window, String title) {
+        boolean isOrderConfirmationTitle = title != null && title.toLowerCase(Locale.ROOT).contains("order confirmation");
+
+        for (Map.Entry<String, Boolean> confirmationButton : orderConfirmationButtons.entrySet()) {
+            if (confirmationButton.getValue() && !isOrderConfirmationTitle) {
+                // this button is also found in other windows, so it is skipped
+                // here to make sure no other button is clicked by accident
+                continue;
+            }
+
+            JButton button = Common.getButton(window, confirmationButton.getKey());
+            if (button != null) {
+                return button;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1433,27 +1552,20 @@ public class WindowEventListener implements AWTEventListener {
      * @return Returns the text content of the window
      */
     private String GetWindowText(Window window) {
-        String text = "";
+        StringBuilder text = new StringBuilder();
 
-        JTextPane textPane = Common.getTextPane(window);
-        if (textPane != null) {
-            String t = textPane.getText();
-            if (t != null) {
-                text += t.replaceAll("\\<.*?>", " ").trim();
+        for (Component component : Common.getComponents(window)) {
+            if (component instanceof JTextComponent) {
+                String t = ((JTextComponent)component).getText();
+                if (t != null) {
+                    text.append(t.replaceAll("\\<.*?>", " ").replace("&quot;", "\"").replace("&amp;", "&").trim()).append(" ");
+                }
             }
         }
 
-        JTextArea textArea = Common.getTextArea(window);
-        if (textArea != null) {
-            String t = textArea.getText();
-            if (t != null) {
-                text += " " + t.replaceAll("\\<.*?>", " ").trim();
-            }
-        }
+        text.append(String.join(" ", Common.getLabelTextLines(window)));
 
-        text += " " + String.join(" ", Common.getLabelTextLines(window));
-
-        return text;
+        return text.toString();
     }
 
     /**
