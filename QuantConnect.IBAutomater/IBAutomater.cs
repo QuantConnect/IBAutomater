@@ -49,6 +49,7 @@ namespace QuantConnect.IBAutomater
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
         private bool _isRestartInProgress;
+        private bool _isRestartLoginRefused;
         private bool _isFirstStart = true;
         private volatile bool _isAuthenticating;
 
@@ -276,6 +277,7 @@ namespace QuantConnect.IBAutomater
 
                 _process = null;
                 _ibAutomaterInitializeEvent.Reset();
+                _isRestartLoginRefused = false;
 
                 if (IsLinux)
                 {
@@ -523,8 +525,22 @@ namespace QuantConnect.IBAutomater
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailedAccountTasksRequired);
                     }
-                    else if (text.Contains("invalid characters in credentials", StringComparison.InvariantCultureIgnoreCase)
-                        || !IsWithinScheduledServerResetTimes())
+                    else if (text.Contains("invalid characters in credentials", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        _lastStartResult = new StartResult(ErrorCode.LoginFailed);
+                    }
+                    else if (_isRestartInProgress)
+                    {
+                        // IB refused the auto-restart's re-login of the saved session: handled like an expired auto-restart token,
+                        // the relaunched gateway is stopped and reported as exited, so the client can retry with a full login
+                        _isRestartInProgress = false;
+                        // the same gateway can refuse it again until it's stopped, which is not a failed login of the credentials either
+                        _isRestartLoginRefused = true;
+
+                        const string message = "IB Automater auto-restart login failed.";
+                        OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(message));
+                    }
+                    else if (!_isRestartLoginRefused && !IsWithinScheduledServerResetTimes())
                     {
                         _lastStartResult = new StartResult(ErrorCode.LoginFailed);
                     }
@@ -739,7 +755,7 @@ namespace QuantConnect.IBAutomater
         /// Stops the IB Gateway
         /// </summary>
         /// <remarks>The IB Gateway application will be terminated</remarks>
-        public void Stop()
+        public virtual void Stop()
         {
             lock (_locker)
             {
@@ -875,7 +891,7 @@ namespace QuantConnect.IBAutomater
         /// and on Fridays they take everything down, so we'll prevent killing algos
         /// during the scheduled reset times.
         /// </summary>
-        public bool IsWithinScheduledServerResetTimes()
+        public virtual bool IsWithinScheduledServerResetTimes()
         {
             // Use schedule based on server region:
             // https://www.interactivebrokers.com/en/index.php?f=2225
