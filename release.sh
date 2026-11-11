@@ -22,10 +22,22 @@ step() {
     echo "=== $1"
 }
 
+fetch() {
+    curl -fsSL --retry 5 --retry-all-errors "$1"
+}
+
+# Stops the release when the lookup fails: it must not read as "not published"
 is_indexed() {
     local index
-    index=$(curl -fsSL "$FLAT_CONTAINER/index.json")
+    index=$(fetch "$FLAT_CONTAINER/index.json") || exit 1
     grep -qF "\"$1\"" <<< "$index"
+}
+
+# The package records the commit it was built from
+shipped_commit() {
+    local nuspec
+    nuspec=$(fetch "$FLAT_CONTAINER/$1/quantconnect.ibautomater.nuspec") || exit 1
+    sed -n 's/.*<repository [^>]*commit="\([0-9a-f]*\)".*/\1/p' <<< "$nuspec"
 }
 
 step "Bump version"
@@ -34,9 +46,7 @@ head=$(git -C "$ROOT" rev-parse HEAD)
 if ! is_indexed "$version"; then
     echo "$version is not on NuGet yet, releasing it as is"
 else
-    # The package records the commit it was built from
-    nuspec=$(curl -fsSL "$FLAT_CONTAINER/$version/quantconnect.ibautomater.nuspec")
-    shipped=$(sed -n 's/.*<repository [^>]*commit="\([0-9a-f]*\)".*/\1/p' <<< "$nuspec")
+    shipped=$(shipped_commit "$version")
     if [[ -z "$shipped" ]]; then
         echo "Can't tell which commit $version was built from" >&2
         exit 1
@@ -78,6 +88,15 @@ else
         sleep "$INDEXING_POLL_SECONDS"
     done
     echo "$version is indexed"
+
+    # A version pushed by an earlier run is never replaced, so it can be older than master
+    shipped=$(shipped_commit "$version")
+    head=$(git -C "$ROOT" rev-parse HEAD)
+    if [[ "$shipped" != "$head" ]]; then
+        echo "$version was built from ${shipped:-an unknown commit}, not from master ($head)." >&2
+        echo "Run the release again to ship master as a new version." >&2
+        exit 1
+    fi
 fi
 
 # Lists the PRs merged after the given version was set
