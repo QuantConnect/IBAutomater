@@ -23,7 +23,7 @@ step() {
 }
 
 fetch() {
-    curl -fsSL --retry 5 --retry-all-errors "$1"
+    curl -fsSL --retry 5 --retry-all-errors "$@"
 }
 
 # Stops the release when the lookup fails: it must not read as "not published"
@@ -33,11 +33,13 @@ is_indexed() {
     grep -qF "\"$1\"" <<< "$index"
 }
 
-# The package records the commit it was built from
+# The package records the commit it was built from.
+# Saved to a file: a retry appends to captured output but starts a file over
 shipped_commit() {
     local nuspec
-    nuspec=$(fetch "$FLAT_CONTAINER/$1/quantconnect.ibautomater.nuspec") || exit 1
-    sed -n 's/.*<repository [^>]*commit="\([0-9a-f]*\)".*/\1/p' <<< "$nuspec"
+    nuspec="$(mktemp)"
+    fetch -o "$nuspec" "$FLAT_CONTAINER/$1/quantconnect.ibautomater.nuspec" || exit 1
+    sed -n 's/.*<repository [^>]*commit="\([0-9a-f]*\)".*/\1/p' "$nuspec"
 }
 
 step "Bump version"
