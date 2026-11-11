@@ -140,7 +140,7 @@ referenced=$(git -C "$BROKERAGE" grep -h "$REFERENCE" -- '*.csproj' | sed -n 's/
 if [[ "$referenced" == "$version" ]]; then
     pr="already on $version"
 else
-    pr=$(gh pr list --repo "$BROKERAGE_REPO" --head "$branch" --state all --json url --jq '.[0].url // empty')
+    pr=$(gh pr list --repo "$BROKERAGE_REPO" --head "$branch" --state open --json url --jq '.[0].url // empty')
 fi
 
 if [[ -z "$pr" ]]; then
