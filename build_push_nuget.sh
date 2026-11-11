@@ -34,5 +34,6 @@ ls "$OUTPUT"/*.nupkg
 
 if [[ -n "${NUGET_API_KEY:-}" ]]; then
     echo "Pushing to nuget.org"
-    dotnet nuget push "$OUTPUT"/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
+    # A version that is already there is left alone, so a release can be rerun
+    dotnet nuget push "$OUTPUT"/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
 fi
