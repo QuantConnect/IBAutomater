@@ -19,6 +19,8 @@ jobs:
       # Full history: the release reads it to tell what changed since the last version
       - uses: actions/checkout@v7
         with:
+          # Not the commit the run started from: a re-run must see the bump a failed run already pushed
+          ref: master
           path: IBAutomater
           fetch-depth: 0
           token: ${{ secrets.QC_GIT_TOKEN }}
