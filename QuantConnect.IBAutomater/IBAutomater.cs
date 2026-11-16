@@ -1148,6 +1148,16 @@ namespace QuantConnect.IBAutomater
                 }
             }
 
+            // IB Gateway 10.50+ bundles its JRE in the installation directory, while inst_jre.cfg can name the installer's
+            // temporary JRE, deleted after the install: the gateway's launcher falls back to this directory too
+            var bundledJrePath = Path.Combine(ibGatewayVersionPath, "jre");
+            if (Directory.Exists(bundledJrePath))
+            {
+                OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Directory found: {bundledJrePath}"));
+                return bundledJrePath;
+            }
+
+            OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs($"Directory not found: {bundledJrePath}"));
             return null;
         }
 

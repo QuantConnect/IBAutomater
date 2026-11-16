@@ -244,13 +244,19 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
+        String buttonIbApiText = "IB API";
+        JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
+
+        // v1050 opens the window that follows the login with the login window's title
+        if (ibApiButton == null && Common.getButton(window, "Log In") == null && Common.getButton(window, "Paper Log In") == null) {
+            return false;
+        }
+
         this.automater.setMainWindow(window);
         this.automater.logMessage("Main window - Window title: [" + title + "] - Window name: [" + window.getName() + "]");
 
         boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
 
-        String buttonIbApiText = "IB API";
-        JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
         if (ibApiButton == null) {
             this.automater.logMessage("Unexpected window found");
             LogWindowContents(window);
