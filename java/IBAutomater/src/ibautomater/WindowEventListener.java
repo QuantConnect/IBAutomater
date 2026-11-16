@@ -1555,7 +1555,8 @@ public class WindowEventListener implements AWTEventListener {
         StringBuilder text = new StringBuilder();
 
         for (Component component : Common.getComponents(window)) {
-            if (component instanceof JTextComponent) {
+            // text fields (password fields included) hold what the user types, not the message
+            if (component instanceof JTextComponent && !(component instanceof JTextField)) {
                 String t = ((JTextComponent)component).getText();
                 if (t != null) {
                     text.append(t.replaceAll("\\<.*?>", " ").replace("&quot;", "\"").replace("&amp;", "&").trim()).append(" ");
