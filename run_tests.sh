@@ -21,7 +21,8 @@ echo "Running Java tests"
 mkdir -p "$(dirname "$JUNIT_JAR")" "$TEST_CLASSES"
 curl -sfL -o "$JUNIT_JAR" "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/$JUNIT_VERSION/junit-platform-console-standalone-$JUNIT_VERSION.jar"
 echo "$JUNIT_SHA256  $JUNIT_JAR" | sha256sum --check --quiet
-javac -d "$TEST_CLASSES" -cp "$JAVA_PROJECT/dist/IBAutomater.jar:$JUNIT_JAR" $(find "$JAVA_PROJECT/test" -name "*.java")
+# the tests live outside the Ant project's test folder (nbproject: test.src.dir=test), so its default build doesn't need JUnit
+javac -d "$TEST_CLASSES" -cp "$JAVA_PROJECT/dist/IBAutomater.jar:$JUNIT_JAR" $(find "$JAVA_PROJECT/tests" -name "*.java")
 
 # the automater writes IBAutomater.log to the working directory
 cd "$JAVA_PROJECT/build/test"
