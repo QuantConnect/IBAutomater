@@ -100,7 +100,12 @@ namespace QuantConnect.IBAutomater
         /// <summary>
         /// During login the gateway presented blocking account tasks we could not get past
         /// </summary>
-        LoginFailedAccountTasksRequired
+        LoginFailedAccountTasksRequired,
+
+        /// <summary>
+        /// The IBAutomater was shut down
+        /// </summary>
+        Shutdown
     }
 
     /// <summary>
@@ -174,6 +179,10 @@ namespace QuantConnect.IBAutomater
                 {
                     ErrorCode.LoginFailedAccountTasksRequired,
                     "Login to the IB Gateway failed because a user account-task is required. Please download the IB Gateway and follow the instructions provided https://www.interactivebrokers.com/en/trading/ibgateway-stable.php."
+                },
+                {
+                    ErrorCode.Shutdown,
+                    "The IBAutomater was shut down."
                 }
             };
 
