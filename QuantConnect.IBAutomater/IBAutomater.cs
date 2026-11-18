@@ -1113,7 +1113,7 @@ namespace QuantConnect.IBAutomater
                 $"LoadIbServerInformation(): ServerName: {_ibServerName}, ServerRegion: {_ibServerRegion}"));
         }
 
-        private string GetJreInstallPath(string ibGatewayVersionPath)
+        internal string GetJreInstallPath(string ibGatewayVersionPath)
         {
             OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs("Searching for TWS JRE path"));
 

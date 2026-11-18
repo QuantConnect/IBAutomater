@@ -224,7 +224,7 @@ public class WindowEventListener implements AWTEventListener {
      *
      * @return Returns true if the window was detected and handled
      */
-    private boolean HandleLoginWindow(Window window, int eventId) throws Exception {
+    boolean HandleLoginWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED || 
             // restarting, no need to manually log in
             this.automater.getSettings().getRestarting()) {
