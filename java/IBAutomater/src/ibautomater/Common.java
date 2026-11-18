@@ -249,6 +249,19 @@ public class Common {
     }
 
     /**
+     * Gets a JCheckBox instance with the specified text, with or without a trailing period.
+     *
+     * @param container The container to be queried
+     * @param text The check box text to find, without its trailing period
+     *
+     * @return Returns a JCheckBox instance in the given container with the specified text, null if the check box is not found
+     */
+    public static JCheckBox getCheckBoxIgnoringTrailingPeriod(Container container, String text) {
+        JCheckBox checkBox = getCheckBox(container, text + ".");
+        return checkBox != null ? checkBox : getCheckBox(container, text);
+    }
+
+    /**
      * Gets the first JTextPane instance in the container.
      *
      * @param container The container to be queried

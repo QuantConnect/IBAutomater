@@ -723,9 +723,9 @@ public class WindowEventListener implements AWTEventListener {
             createApiLog.setSelected(true);
         }
 
-        // v983+
+        // v983+, labeled with a trailing period. Selected, IB rejects an order whose FA method differs from its group's
         String faText = "Use Account Groups with Allocation Methods";
-        JCheckBox faCheckBox = Common.getCheckBox(window, faText);
+        JCheckBox faCheckBox = Common.getCheckBoxIgnoringTrailingPeriod(window, faText);
         if (faCheckBox != null && faCheckBox.isSelected()) {
             this.automater.logMessage("Unselect checkbox: [" + faText + "]");
             faCheckBox.setSelected(false);
@@ -735,10 +735,7 @@ public class WindowEventListener implements AWTEventListener {
         // connection is back, after the client stopped waiting for it. Off, it is rejected like the requests that follow
         String resubmitOrdersText = "Maintain and resubmit orders when connection is restored";
         // v1050 ends the label with a period
-        JCheckBox resubmitOrders = Common.getCheckBox(window, resubmitOrdersText + ".");
-        if (resubmitOrders == null) {
-            resubmitOrders = Common.getCheckBox(window, resubmitOrdersText);
-        }
+        JCheckBox resubmitOrders = Common.getCheckBoxIgnoringTrailingPeriod(window, resubmitOrdersText);
         if (resubmitOrders != null && resubmitOrders.isSelected()) {
             this.automater.logMessage("Unselect checkbox: [" + resubmitOrdersText + "]");
             resubmitOrders.setSelected(false);
