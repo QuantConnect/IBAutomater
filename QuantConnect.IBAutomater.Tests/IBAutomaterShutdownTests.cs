@@ -46,7 +46,7 @@ namespace QuantConnect.IBAutomater.Tests
             _workingDirectory = Path.Combine(_directory, "working");
             Directory.CreateDirectory(_workingDirectory);
             File.WriteAllText(Path.Combine(_workingDirectory, "IBAutomater.sh"),
-                "#!/bin/bash\ndirectory=$(dirname \"$1\")\nwhile [ ! -f \"$directory/shutdown\" ]; do sleep 0.1; done\n");
+                "#!/bin/bash\ndirectory=$(dirname \"$1\")\nwhile [ -d \"$directory\" ] && [ ! -f \"$directory/shutdown\" ]; do sleep 0.1; done\n");
             Environment.CurrentDirectory = _workingDirectory;
 
             _automater = new IBAutomater(gatewayDirectory, "1034", "user", "password", "paper", 4002, false);
