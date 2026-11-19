@@ -2,14 +2,15 @@
 # Releases master: bumps the version when master has commits the last published package lacks,
 # publishes the NuGet package and opens the PR that updates it in the Interactive Brokers brokerage.
 #
-# Usage: release.sh <brokerage checkout>
+# Usage: release.sh [brokerage checkout]
+# Without the brokerage checkout the package is published and no PR is opened.
 # Publishes with NUGET_API_KEY and opens the PR with GH_TOKEN. Safe to rerun, finished steps are skipped.
 # DRY_RUN=1 skips the NuGet wait and the PR creation but still pushes commits and branches:
 # only use it with every remote pointed at a local mirror.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BROKERAGE="$(cd "$1" && pwd)"
+BROKERAGE="${1:+$(cd "$1" && pwd)}"
 BROKERAGE_REPO="QuantConnect/Lean.Brokerages.InteractiveBrokers"
 CSPROJ="QuantConnect.IBAutomater/QuantConnect.IBAutomater.csproj"
 FLAT_CONTAINER="https://api.nuget.org/v3-flatcontainer/quantconnect.ibautomater"
@@ -154,6 +155,11 @@ EOF
 }
 
 step "Open brokerage PR"
+if [[ -z "$BROKERAGE" ]]; then
+    echo "$BROKERAGE_REPO: PR not opened, as requested" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+    exit 0
+fi
+
 branch="feature-update-ibautomater-$version"
 title="Update QuantConnect.IBAutomater to $version"
 referenced=$(git -C "$BROKERAGE" grep -h "$REFERENCE" -- '*.csproj' | sed -n 's/.*Version="\([^"]*\)".*/\1/p' | sort -uV | tail -1)
