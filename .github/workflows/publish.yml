@@ -3,7 +3,13 @@ name: Publish NuGet
 # Run manually to release master: bumps the version when master has unreleased commits, builds the
 # package, pushes it to nuget.org and opens the PR that updates it in the Interactive Brokers brokerage.
 # Safe to rerun after a failure, finished steps are skipped.
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      open_brokerage_pr:
+        description: Open the PR that updates the package in the Interactive Brokers brokerage
+        type: boolean
+        default: true
 
 concurrency: publish
 
@@ -26,6 +32,7 @@ jobs:
           token: ${{ secrets.QC_GIT_TOKEN }}
 
       - uses: actions/checkout@v7
+        if: inputs.open_brokerage_pr
         with:
           repository: QuantConnect/Lean.Brokerages.InteractiveBrokers
           path: brokerage
@@ -55,4 +62,5 @@ jobs:
           # Commits made here belong to whoever ran the workflow
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          bash IBAutomater/release.sh brokerage
+          # Without the brokerage checkout the release stops after publishing
+          bash IBAutomater/release.sh ${{ inputs.open_brokerage_pr && 'brokerage' || '' }}
