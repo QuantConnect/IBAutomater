@@ -46,6 +46,10 @@ public class ConfigurationWindowTest {
         final JCheckBox bypassOrderPrecautions = new JCheckBox("Bypass Order Precautions for API Orders");
         final AtomicInteger okClicks = new AtomicInteger();
 
+        ConfigurationFrame(String resubmitOrdersText, boolean resubmitOrdersSelected) {
+            this(resubmitOrdersText, resubmitOrdersSelected, "Use Account Groups with Allocation Methods.");
+        }
+
         ConfigurationFrame(String resubmitOrdersText, boolean resubmitOrdersSelected, String accountGroupsText) {
             super("Trader Workstation Configuration (Simulated Trading)");
             this.resubmitOrders = new JCheckBox(resubmitOrdersText);
@@ -71,9 +75,7 @@ public class ConfigurationWindowTest {
             panel.add(this.readOnlyApi);
             panel.add(new JTextField());
             panel.add(new JCheckBox("Create API message log file"));
-            if (accountGroupsText != null) {
-                panel.add(this.accountGroups);
-            }
+            panel.add(this.accountGroups);
             if (resubmitOrdersText != null) {
                 panel.add(this.resubmitOrders);
             }
@@ -98,7 +100,7 @@ public class ConfigurationWindowTest {
         "'Maintain and resubmit orders when connection is restored', true",
     })
     public void TurnsOffOrderResubmissionAfterReconnect(String label, boolean selected) throws Exception {
-        ConfigurationFrame frame = new ConfigurationFrame(label, selected, null);
+        ConfigurationFrame frame = new ConfigurationFrame(label, selected);
 
         assertTrue(createListener().HandleConfigurationWindow(frame, WindowEvent.WINDOW_OPENED));
 
@@ -108,18 +110,18 @@ public class ConfigurationWindowTest {
         assertEquals(1, frame.okClicks.get());
     }
 
-    // selected, IB rejects an order whose FA method differs from its group's; 10.39 and 10.50 label it with a trailing period
+    // unselected, IB ignores profile-type allocations (Percent, Ratio, Shares) named as an order's FA group
     @ParameterizedTest
     @CsvSource({
         "'Use Account Groups with Allocation Methods.'",
         "'Use Account Groups with Allocation Methods'",
     })
-    public void UnselectsAccountGroupsWithAllocationMethods(String label) throws Exception {
+    public void KeepsAccountGroupsWithAllocationMethodsSelected(String label) throws Exception {
         ConfigurationFrame frame = new ConfigurationFrame("Maintain and resubmit orders when connection is restored.", true, label);
 
         assertTrue(createListener().HandleConfigurationWindow(frame, WindowEvent.WINDOW_OPENED));
 
-        assertFalse(frame.accountGroups.isSelected());
+        assertTrue(frame.accountGroups.isSelected());
         assertFalse(frame.resubmitOrders.isSelected());
         assertEquals(1, frame.okClicks.get());
     }
@@ -127,7 +129,7 @@ public class ConfigurationWindowTest {
     // gateways before 10.40 don't have the setting
     @Test
     public void AppliesTheSettingsWithoutOrderResubmissionSetting() throws Exception {
-        ConfigurationFrame frame = new ConfigurationFrame(null, false, null);
+        ConfigurationFrame frame = new ConfigurationFrame(null, false);
 
         assertTrue(createListener().HandleConfigurationWindow(frame, WindowEvent.WINDOW_OPENED));
 

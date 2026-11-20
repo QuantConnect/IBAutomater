@@ -664,7 +664,6 @@ public class WindowEventListener implements AWTEventListener {
      *   - deselects the "Read-Only API" check box
      *   - sets the API Port Number
      *   - selects the "Create API message log file" check box
-     *   - deselects the "Use Account Groups with Allocation Methods" check box
      *   - deselects the "Maintain and resubmit orders when connection is restored" check box
      * - in the Configuration/API/Precautions panel:
      *   - selects the "Bypass Order Precautions for API Orders" check box
@@ -723,19 +722,14 @@ public class WindowEventListener implements AWTEventListener {
             createApiLog.setSelected(true);
         }
 
-        // v983+, labeled with a trailing period. Selected, IB rejects an order whose FA method differs from its group's
-        String faText = "Use Account Groups with Allocation Methods";
-        JCheckBox faCheckBox = Common.getCheckBoxIgnoringTrailingPeriod(window, faText);
-        if (faCheckBox != null && faCheckBox.isSelected()) {
-            this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-            faCheckBox.setSelected(false);
-        }
-
         // v1040+, on by default: an order request reaching the gateway after it lost IB would be held and sent once the
         // connection is back, after the client stopped waiting for it. Off, it is rejected like the requests that follow
         String resubmitOrdersText = "Maintain and resubmit orders when connection is restored";
         // v1050 ends the label with a period
-        JCheckBox resubmitOrders = Common.getCheckBoxIgnoringTrailingPeriod(window, resubmitOrdersText);
+        JCheckBox resubmitOrders = Common.getCheckBox(window, resubmitOrdersText + ".");
+        if (resubmitOrders == null) {
+            resubmitOrders = Common.getCheckBox(window, resubmitOrdersText);
+        }
         if (resubmitOrders != null && resubmitOrders.isSelected()) {
             this.automater.logMessage("Unselect checkbox: [" + resubmitOrdersText + "]");
             resubmitOrders.setSelected(false);
