@@ -224,7 +224,7 @@ public class WindowEventListener implements AWTEventListener {
      *
      * @return Returns true if the window was detected and handled
      */
-    private boolean HandleLoginWindow(Window window, int eventId) throws Exception {
+    boolean HandleLoginWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED || 
             // restarting, no need to manually log in
             this.automater.getSettings().getRestarting()) {
@@ -244,13 +244,19 @@ public class WindowEventListener implements AWTEventListener {
             return false;
         }
 
+        String buttonIbApiText = "IB API";
+        JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
+
+        // v1050 opens the window that follows the login with the login window's title
+        if (ibApiButton == null && Common.getButton(window, "Log In") == null && Common.getButton(window, "Paper Log In") == null) {
+            return false;
+        }
+
         this.automater.setMainWindow(window);
         this.automater.logMessage("Main window - Window title: [" + title + "] - Window name: [" + window.getName() + "]");
 
         boolean isLiveTradingMode = this.automater.getSettings().getTradingMode().equals("live");
 
-        String buttonIbApiText = "IB API";
-        JToggleButton ibApiButton = Common.getToggleButton(window, buttonIbApiText);
         if (ibApiButton == null) {
             this.automater.logMessage("Unexpected window found");
             LogWindowContents(window);
@@ -658,7 +664,7 @@ public class WindowEventListener implements AWTEventListener {
      *   - deselects the "Read-Only API" check box
      *   - sets the API Port Number
      *   - selects the "Create API message log file" check box
-     *   - deselects the "Use Account Groups with Allocation Methods" check box
+     *   - deselects the "Maintain and resubmit orders when connection is restored" check box
      * - in the Configuration/API/Precautions panel:
      *   - selects the "Bypass Order Precautions for API Orders" check box
      * - in the Configuration/Lock and Exit panel:
@@ -671,7 +677,7 @@ public class WindowEventListener implements AWTEventListener {
      *
      * @return Returns true if the window was detected and handled
      */
-    private boolean HandleConfigurationWindow(Window window, int eventId) throws Exception {
+    boolean HandleConfigurationWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
@@ -716,12 +722,17 @@ public class WindowEventListener implements AWTEventListener {
             createApiLog.setSelected(true);
         }
 
-        // v983+
-        String faText = "Use Account Groups with Allocation Methods";
-        JCheckBox faCheckBox = Common.getCheckBox(window, faText);
-        if (faCheckBox != null && faCheckBox.isSelected()) {
-            this.automater.logMessage("Unselect checkbox: [" + faText + "]");
-            faCheckBox.setSelected(false);
+        // v1040+, on by default: an order request reaching the gateway after it lost IB would be held and sent once the
+        // connection is back, after the client stopped waiting for it. Off, it is rejected like the requests that follow
+        String resubmitOrdersText = "Maintain and resubmit orders when connection is restored";
+        // v1050 ends the label with a period
+        JCheckBox resubmitOrders = Common.getCheckBox(window, resubmitOrdersText + ".");
+        if (resubmitOrders == null) {
+            resubmitOrders = Common.getCheckBox(window, resubmitOrdersText);
+        }
+        if (resubmitOrders != null && resubmitOrders.isSelected()) {
+            this.automater.logMessage("Unselect checkbox: [" + resubmitOrdersText + "]");
+            resubmitOrders.setSelected(false);
         }
 
         Common.selectTreeNode(tree, new TreePath(new String[]{"Configuration", "API", "Precautions"}));
