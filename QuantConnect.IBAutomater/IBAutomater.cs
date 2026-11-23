@@ -48,6 +48,8 @@ namespace QuantConnect.IBAutomater
         private Process _process;
         private StartResult _lastStartResult = StartResult.Success;
         private readonly AutoResetEvent _ibAutomaterInitializeEvent = new AutoResetEvent(false);
+        // set once by Shutdown(), never reset: it ends a start waiting for the login and fails the later ones
+        private readonly ManualResetEvent _shutdownEvent = new ManualResetEvent(false);
         private bool _isRestartInProgress;
         private bool _isRestartLoginRefused;
         private bool _isFirstStart = true;
@@ -238,6 +240,11 @@ namespace QuantConnect.IBAutomater
         {
             lock (_locker)
             {
+                if (_shutdownEvent.WaitOne(0))
+                {
+                    return new StartResult(ErrorCode.Shutdown);
+                }
+
                 if (!_renamedIbGatewayExcecutable)
                 {
                     CleanUpIbGatewayExcecutable();
@@ -403,7 +410,14 @@ namespace QuantConnect.IBAutomater
                 {
                     // wait for completion of IBGateway login and configuration
                     string message;
-                    if (_ibAutomaterInitializeEvent.WaitOne(_initializationTimeout))
+                    var signaled = WaitHandle.WaitAny(new WaitHandle[] { _ibAutomaterInitializeEvent, _shutdownEvent }, _initializationTimeout);
+                    if (signaled == 1)
+                    {
+                        // the gateway keeps running until the shutdown's stop, which waits for this lock
+                        _lastStartResult = new StartResult(ErrorCode.Shutdown);
+                        message = "IB Automater shut down while initializing.";
+                    }
+                    else if (signaled == 0)
                     {
                         var processName = IsWindows ? Path.GetFileNameWithoutExtension(fileName) : "java";
                         var p = Process.GetProcessesByName(processName).FirstOrDefault();
@@ -749,6 +763,17 @@ namespace QuantConnect.IBAutomater
                 OutputDataReceived?.Invoke(this, new OutputDataReceivedEventArgs(
                     $"EnsureGatewayIsStopped(): error stopping the gateway: {exception.Message}"));
             }
+        }
+
+        /// <summary>
+        /// Stops the IB Gateway for good, such as before disposing of this instance: a start waiting for the login,
+        /// for example for a two factor authentication confirmation, ends at once instead of holding the stop until
+        /// the login ends, and later starts fail with <see cref="ErrorCode.Shutdown"/>
+        /// </summary>
+        public void Shutdown()
+        {
+            _shutdownEvent.Set();
+            Stop();
         }
 
         /// <summary>
