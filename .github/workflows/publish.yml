@@ -19,7 +19,7 @@ jobs:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # lets the run's own token push the version bump when QC_GIT_TOKEN isn't available
       id-token: write # lets NuGet/login exchange the GitHub OIDC token for a short-lived nuget.org API key
     steps:
       # Full history: the release reads it to tell what changed since the last version
@@ -29,7 +29,8 @@ jobs:
           ref: master
           path: IBAutomater
           fetch-depth: 0
-          token: ${{ secrets.QC_GIT_TOKEN }}
+          # The run's own token can push the bump to master, but can't open the brokerage PR
+          token: ${{ secrets.QC_GIT_TOKEN || github.token }}
 
       - uses: actions/checkout@v7
         if: inputs.open_brokerage_pr
