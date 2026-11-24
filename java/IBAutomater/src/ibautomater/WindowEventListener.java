@@ -599,7 +599,8 @@ public class WindowEventListener implements AWTEventListener {
         }
 
         // until it is accepted, the gateway holds every order with error 2139
-        String windowText = GetWindowText(window).replaceAll("\\s+", " ").toLowerCase();
+        // the gateway's HTML text wraps lines and may keep entities or non-breaking spaces such as &nbsp;: all count as spaces
+        String windowText = GetWindowText(window).replaceAll("&#?\\w+;|[\\s\\u00a0]+", " ").replaceAll(" +", " ").toLowerCase();
         if (Common.getLabel(window, "This is not a brokerage account") == null
             && !windowText.contains("paper trading account is no longer operating in")) {
             return false;

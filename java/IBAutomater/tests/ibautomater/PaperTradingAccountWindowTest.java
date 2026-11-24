@@ -30,15 +30,23 @@ import javax.swing.JTextPane;
 import org.junit.jupiter.api.Test;
 
 /**
- * Drives the paper trading warning handler with windows built like the gateway's, never shown on screen
+ * Drives the paper trading warning handler with windows built like the gateway's (v1039) warnings, never shown on screen
  */
 public class PaperTradingAccountWindowTest {
 
-    private static final String PREVIEW_MODE_WARNING = "<html>Your Paper Trading account is no longer operating in &quot;Preview&quot; mode<br>"
-        + "&bull; Simulated order handling/trades now uses real-time market data instead of delayed data.</html>";
+    // the gateway's login warning holds its message in an HTML label
+    private static final String LOGIN_WARNING = "<html>This is not a brokerage account. <br>This is a \"paper\" trading account in which you <br>"
+        + "can engage in simulated trading. <br><br>Please confirm that you understand and wish <br>"
+        + "to conduct simulated trading before proceeding.</html>";
+
+    // the gateway's warnings on orders hold their message in an HTML text pane, whose text comes back wrapped and indented
+    private static final String PREVIEW_MODE_WARNING_HTML = "<html>\n  <head>\n    \n  </head>\n  <body>\n"
+        + "    Your Paper Trading account is no longer operating in &quot;Preview&quot; \n"
+        + "    mode<br>&#8226; Simulated order handling/trades now uses real-time market data instead of delayed data.\n"
+        + "  </body>\n</html>\n";
 
     /**
-     * A warning window holding the given message and the "I understand and accept" and "Cancel" buttons
+     * A warning window laid out like the gateway's: an icon, the message, the title label and the buttons
      */
     private static class WarningFrame extends JFrame {
         final AtomicInteger acceptClicks = new AtomicInteger();
@@ -52,9 +60,13 @@ public class PaperTradingAccountWindowTest {
             cancel.addActionListener(e -> this.cancelClicks.incrementAndGet());
 
             JPanel panel = new JPanel();
+            panel.add(new JLabel((String) null));
             panel.add(message);
             panel.add(accept);
             panel.add(cancel);
+            panel.add(new JLabel(""));
+            panel.add(new JLabel("Warning"));
+            panel.add(new JLabel(""));
             this.setContentPane(panel);
         }
     }
@@ -67,22 +79,13 @@ public class PaperTradingAccountWindowTest {
         JTextPane textPane = new JTextPane();
         textPane.setContentType("text/html");
         textPane.setText(text);
+        textPane.setEditable(false);
         return textPane;
     }
 
     @Test
     public void AcceptsTheLoginPaperTradingWarning() throws Exception {
-        WarningFrame frame = new WarningFrame(new JLabel("<html>This is not a brokerage account. This is a paper trading account.</html>"));
-
-        assertTrue(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_OPENED));
-
-        assertEquals(1, frame.acceptClicks.get());
-        assertEquals(0, frame.cancelClicks.get());
-    }
-
-    @Test
-    public void AcceptsThePreviewModeWarningInALabel() throws Exception {
-        WarningFrame frame = new WarningFrame(new JLabel(PREVIEW_MODE_WARNING));
+        WarningFrame frame = new WarningFrame(new JLabel(LOGIN_WARNING));
 
         assertTrue(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_OPENED));
 
@@ -92,7 +95,29 @@ public class PaperTradingAccountWindowTest {
 
     @Test
     public void AcceptsThePreviewModeWarningInATextPane() throws Exception {
-        WarningFrame frame = new WarningFrame(createTextPane(PREVIEW_MODE_WARNING));
+        WarningFrame frame = new WarningFrame(createTextPane(PREVIEW_MODE_WARNING_HTML));
+
+        assertTrue(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_OPENED));
+
+        assertEquals(1, frame.acceptClicks.get());
+        assertEquals(0, frame.cancelClicks.get());
+    }
+
+    @Test
+    public void AcceptsThePreviewModeWarningInALabel() throws Exception {
+        WarningFrame frame = new WarningFrame(new JLabel("<html>Your Paper Trading account is no longer operating in \"Preview\" mode<br>"
+            + "&bull; Simulated order handling/trades now uses real-time market data instead of delayed data.</html>"));
+
+        assertTrue(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_OPENED));
+
+        assertEquals(1, frame.acceptClicks.get());
+        assertEquals(0, frame.cancelClicks.get());
+    }
+
+    @Test
+    public void AcceptsThePreviewModeWarningWithNonBreakingSpaces() throws Exception {
+        WarningFrame frame = new WarningFrame(new JLabel("<html>Your Paper&nbsp;Trading account is no\u00a0longer operating&#160;in "
+            + "&ldquo;Preview&rdquo; mode</html>"));
 
         assertTrue(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_OPENED));
 
@@ -111,7 +136,7 @@ public class PaperTradingAccountWindowTest {
 
     @Test
     public void IgnoresThePreviewModeWarningClosing() throws Exception {
-        WarningFrame frame = new WarningFrame(new JLabel(PREVIEW_MODE_WARNING));
+        WarningFrame frame = new WarningFrame(createTextPane(PREVIEW_MODE_WARNING_HTML));
 
         assertFalse(createListener().HandlePaperTradingAccountWindow(frame, WindowEvent.WINDOW_CLOSED));
 
