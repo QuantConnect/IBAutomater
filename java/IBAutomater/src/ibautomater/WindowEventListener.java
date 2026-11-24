@@ -584,7 +584,8 @@ public class WindowEventListener implements AWTEventListener {
     }
 
     /**
-     * Detects and handles the Paper Trading warning window.
+     * Detects and handles the Paper Trading warning windows: the one at login,
+     * and the one about the account no longer operating in "Preview" mode, which opens on the first order
      * - clicks the "I understand and accept" button
      *
      * @param window The window instance
@@ -592,12 +593,15 @@ public class WindowEventListener implements AWTEventListener {
      *
      * @return Returns true if the window was detected and handled
      */
-    private boolean HandlePaperTradingAccountWindow(Window window, int eventId) throws Exception {
+    boolean HandlePaperTradingAccountWindow(Window window, int eventId) throws Exception {
         if (eventId != WindowEvent.WINDOW_OPENED) {
             return false;
         }
 
-        if (Common.getLabel(window, "This is not a brokerage account") == null) {
+        // until it is accepted, the gateway holds every order with error 2139
+        String windowText = GetWindowText(window).replaceAll("\\s+", " ").toLowerCase();
+        if (Common.getLabel(window, "This is not a brokerage account") == null
+            && !windowText.contains("paper trading account is no longer operating in")) {
             return false;
         }
 
